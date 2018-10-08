@@ -81,7 +81,7 @@ EXPORTS
     midiOutPrepareHeader             = KDMAPI_midiOutPrepareHeader
     midiOutReset                     = KDMAPI_midiOutReset
     midiOutSetVolume                 = KDMAPI_midiOutSetVolume
-    midiOutShortMsg                  = FINAL_midiOutShortMsg
+    midiOutShortMsg                  = KDMAPI_midiOutShortMsg
     midiOutUnprepareHeader           = KDMAPI_midiOutUnprepareHeader
     midiStreamClose                  = c:\\windows\\system32\\winmm.midiStreamClose
     midiStreamOpen                   = c:\\windows\\system32\\winmm.midiStreamOpen
