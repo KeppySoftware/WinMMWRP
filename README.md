@@ -22,4 +22,4 @@ Then, I decided to work on a *wrapper*, which would import the functions from th
 Long story short, it was a success. Everything works like it should, and people are happy.
 
 # License
-See [LICENSE](https://github.com/KeppySoftware/WinMMWRP/blob/master/LICENSE).
+See [LICENSE](LICENSE.md).
