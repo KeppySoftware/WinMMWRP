@@ -1,0 +1,20 @@
+// Ignore non-mandatory files
+*.suo
+*.tmp
+/*.dll
+/*.exe
+/*.opensdf
+/*.sdf
+/*.suo
+/*.user
+/*.vcxproj.user
+
+// Rest
+/.vs/
+/x64/
+/DAW/
+/Release/
+/winmmwrp/x64/
+/winmmwrp/DAW/
+/winmmwrp/Release/
+/Output/
