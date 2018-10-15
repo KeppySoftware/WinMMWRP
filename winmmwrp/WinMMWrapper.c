@@ -1,6 +1,5 @@
 #include <Windows.h>
 #include <stdio.h>
-#include <mmddk.h>
 #include <Winuser.h>
 
 #define KDMAPI_UDID			0		// KDMAPI default uDeviceID
@@ -8,6 +7,13 @@
 #define KDMAPI_LOADED		1		// KDMAPI is loaded
 
 #define LONGMSG_MAXSIZE		65535	// Maximum size for a long message/MIDIHDR
+
+#define LOCK_VM_IN_WORKING_SET 1
+#define LOCK_VM_IN_RAM 2
+
+// We don't need MMDDK lel
+#define MODM_GETVOLUME		10
+#define MODM_SETVOLUME		11
 
 #pragma once
 
@@ -28,6 +34,11 @@ static void(WINAPI*IOMS)(void) = 0;																						// InitializeKDMAPIStre
 static void(WINAPI*TOMS)(void) = 0;																						// TerminateKDMAPIStream
 static void(WINAPI*ROMS)(void) = 0;																						// ResetKDMAPIStream
 static BOOL(WINAPI*IKDMAPIA)(void) = 0;																					// IsKDMAPIAvailable
+
+// NTDLL funcs
+static NTSTATUS(NTAPI*NtLockVirtualMemory)(IN HANDLE process, IN OUT void** baseAddress, IN OUT ULONG* size, IN ULONG flags);
+static NTSTATUS(NTAPI*NtUnlockVirtualMemory)(IN HANDLE process, IN OUT void** baseAddress, IN OUT ULONG* size, IN ULONG flags);
+static NTSTATUS(NTAPI*NtDelayExecution)(BOOLEAN dwAlertable, PLARGE_INTEGER dwDelayInterval);
 
 #ifdef _DAWRELEASE
 // WinMM funcs, just replace MM with "midiOut" to get the real version
@@ -128,6 +139,16 @@ void InitializeOMDirectAPI() {
 	if (OMDI) IOMS();			// Enable the KDMAPI flag in the debug window
 }
 
+void InitializeNTDLL() {
+	NtDelayExecution = (NTSTATUS*)GetProcAddress(GetModuleHandle("ntdll"), "NtDelayExecution");
+	NtLockVirtualMemory = (NTSTATUS*)GetProcAddress(GetModuleHandle("ntdll"), "NtLockVirtualMemory");
+	NtUnlockVirtualMemory = (NTSTATUS*)GetProcAddress(GetModuleHandle("ntdll"), "NtUnlockVirtualMemory");
+	if (!NtDelayExecution || !NtLockVirtualMemory || !NtUnlockVirtualMemory) {
+		MessageBox(NULL, "Failed to parse functions from NTDLL!\nPress OK to quit.", "OmniMIDI - FATAL ERROR", MB_OK | MB_ICONERROR | MB_SYSTEMMODAL);
+		exit(0x0A);
+	}
+}
+
 #ifdef _DAWRELEASE
 void InitializeWinMM() {
 	// Load WinMM
@@ -165,6 +186,7 @@ void InitializeWinMM() {
 
 BOOL WINAPI DllMain(HINSTANCE hInstDLL, DWORD fdwReason, LPVOID fImpLoad) {
 	if (fdwReason == DLL_PROCESS_ATTACH) {
+		InitializeNTDLL();
 #ifdef _DAWRELEASE
 		InitializeWinMM();
 #endif
@@ -366,8 +388,7 @@ MMRESULT WINAPI KDMAPI_midiOutShortMsg(HMIDIOUT hMidiOut, DWORD dwMsg) {
 	if (hMidiOut != OMDummy)
 		return MMOutShortMsg(hMidiOut, dwMsg);
 #endif
-	// Else, forward to KDMAPI
-	SDD(dwMsg);
+	return SDD(dwMsg);
 }
 
 MMRESULT WINAPI KDMAPI_midiOutOpen(LPHMIDIOUT lphmo, UINT_PTR uDeviceID, DWORD_PTR dwCallback, DWORD_PTR dwCallbackInstance, DWORD dwFlags) {
@@ -460,12 +481,16 @@ MMRESULT WINAPI KDMAPI_midiOutPrepareHeader(HMIDIOUT hMidiOut, MIDIHDR* lpMidiOu
 	if (!hMidiOut) return MMSYSERR_INVALHANDLE;															// The device doesn't exist, invalid handle
 	if (!lpMidiOutHdr || sizeof(lpMidiOutHdr->lpData) > LONGMSG_MAXSIZE) return MMSYSERR_INVALPARAM;	// The buffer doesn't exist or is too big, invalid parameter
 
+	void* Mem = lpMidiOutHdr->lpData;
+	unsigned long Size = sizeof(lpMidiOutHdr->lpData);
+
 	// Lock the MIDIHDR buffer, to prevent the MIDI app from accidentally writing to it
-	if (!VirtualLock(lpMidiOutHdr->lpData, sizeof(lpMidiOutHdr->lpData))) 
+	if (!NtLockVirtualMemory(GetCurrentProcess(), &Mem, &Size, LOCK_VM_IN_WORKING_SET | LOCK_VM_IN_RAM))
 		return MMSYSERR_NOMEM;																			// Failed to lock the buffer, the working set is not big enough
 
 	// Mark the buffer as prepared, and return MMSYSERR_NOERROR
 	lpMidiOutHdr->dwFlags |= MHDR_PREPARED;
+
 	return MMSYSERR_NOERROR;
 }
 
@@ -475,11 +500,16 @@ MMRESULT WINAPI KDMAPI_midiOutUnprepareHeader(HMIDIOUT hMidiOut, MIDIHDR* lpMidi
 	if (!(lpMidiOutHdr->dwFlags & MHDR_PREPARED)) return MMSYSERR_NOERROR;		// Already unprepared, everything is fine
 	if (lpMidiOutHdr->dwFlags & MHDR_INQUEUE) return MIDIERR_STILLPLAYING;		// The buffer is currently being played from the driver, cannot unprepare
 
+	void* Mem = lpMidiOutHdr->lpData;
+	unsigned long Size = sizeof(lpMidiOutHdr->lpData);
+
 	// Mark the buffer as unprepared
 	lpMidiOutHdr->dwFlags &= ~MHDR_PREPARED;
 
 	// Unlock the buffer, and return MMSYSERR_NOERROR
-	VirtualUnlock(lpMidiOutHdr->lpData, sizeof(lpMidiOutHdr->lpData));
+	NtUnlockVirtualMemory(GetCurrentProcess(), &Mem, &Size, LOCK_VM_IN_WORKING_SET | LOCK_VM_IN_RAM);
+	RtlSecureZeroMemory(lpMidiOutHdr->lpData, sizeof(lpMidiOutHdr->lpData));
+
 	return MMSYSERR_NOERROR;
 }
 
@@ -501,6 +531,7 @@ MMRESULT WINAPI KDMAPI_midiOutLongMsg(HMIDIOUT hMidiOut, MIDIHDR* lpMidiOutHdr, 
 
 		// Inform the app that the driver successfully received the long message (Required for vanBasco to work), and return the MMRESULT
 		if (WMMC) WMMC(hMidiOut, IsCallbackWindow ? MM_MOM_DONE : MOM_DONE, WMMCI, lpMidiOutHdr, lpMidiOutHdr->dwBufferLength);
+
 		return Ret;
 		// This is what you see in both standard and DAW releases ----------------------------------------------------------------
 
