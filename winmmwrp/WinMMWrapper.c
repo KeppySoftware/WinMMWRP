@@ -30,8 +30,8 @@ static MMRESULT(WINAPI*SDD)(DWORD msg) = 0;																				// SendDirectData
 static MMRESULT(WINAPI*SDLD)(MIDIHDR* IIMidiHdr) = 0;																	// SendDirectLongData
 static MMRESULT(WINAPI*mM)(UINT uDeviceID, UINT uMsg, DWORD_PTR dwUser, DWORD_PTR dwParam1, DWORD_PTR dwParam2) = 0;	// modMessage
 static BOOL(WINAPI*RKDMAPIV)(DWORD *Major, DWORD *Minor, DWORD *Build, DWORD *Revision) = 0;							// ReturnKDMAPIVer
-static void(WINAPI*IOMS)(void) = 0;																						// InitializeKDMAPIStream
-static void(WINAPI*TOMS)(void) = 0;																						// TerminateKDMAPIStream
+static BOOL(WINAPI*IOMS)(void) = 0;																						// InitializeKDMAPIStream
+static BOOL(WINAPI*TOMS)(void) = 0;																						// TerminateKDMAPIStream
 static void(WINAPI*ROMS)(void) = 0;																						// ResetKDMAPIStream
 static BOOL(WINAPI*IKDMAPIA)(void) = 0;																					// IsKDMAPIAvailable
 
@@ -75,8 +75,6 @@ static int SNT[7] =
 	MOD_SQSYNTH
 };
 
-static DWORD OMDI = KDMAPI_NOTLOADED;
-static DWORD OWINMMI = KDMAPI_NOTLOADED;
 static HMODULE OM = NULL;
 static HMODULE OWINMM = NULL;
 
@@ -99,44 +97,60 @@ BOOL CheckIfKDMAPIIsUpToDate() {
 }
 
 void InitializeOMDirectAPI() {
-	if (!OMDI) {
-		SDD = (MMRESULT*)GetProcAddress(OM, "SendDirectData");			// Send short messages to KDMAPI
-		SDLD = (MMRESULT*)GetProcAddress(OM, "SendDirectLongData");		// Send long messages to KDMAPI
-		mM = (MMRESULT*)GetProcAddress(OM, "modMessage");				// Other stuff from the driver
-		RKDMAPIV = (BOOL*)GetProcAddress(OM, "ReturnKDMAPIVer");		// Used to check KDMAPI
-		IOMS = (void*)GetProcAddress(OM, "InitializeKDMAPIStream");		// Initialize the audio output and the threads
-		TOMS = (void*)GetProcAddress(OM, "TerminateKDMAPIStream");		// Terminate the audio output and the threads
-		ROMS = (void*)GetProcAddress(OM, "ResetKDMAPIStream");			// Reset the audio output and the MIDI channels
-		IKDMAPIA = (BOOL*)GetProcAddress(OM, "IsKDMAPIAvailable");		// Dummy, used to enable the KDMAPI flag in the debug window
+	wchar_t SystemDirectory[MAX_PATH];
+	GetSystemDirectoryW(SystemDirectory, MAX_PATH);
+	wcscat(SystemDirectory, L"\\OmniMIDI\\OmniMIDI.dll");
 
-		if (!SDD || !SDLD || !IOMS ||
-			!TOMS || !ROMS || !IKDMAPIA ||
-			!mM) {
-			// One of the functions failed to load, exit
+	// Load the default DLL from the system directory
+	OM = LoadLibraryW(SystemDirectory);
+	if (!OM) {
+		// Failed, try loading it from the app's directory
+		OM = LoadLibraryW("OmniMIDI.dll");
+		if (!OM) {
+			// Failed, OmniMIDI is not available, exit the program
 			MessageBox(
 				NULL,
-				"Failed to initialize KDMAPI!\n\nThis patch only works with KDMAPI 1.30.0 or newer!\nIt won't work with other MIDI drivers!\n\nPress OK to quit.",
+				"Failed to initialize OmniMIDI!\n\nThis patch will not work with other MIDI drivers.\n\nPress OK to exit.",
 				"Keppy's Direct MIDI API",
 				MB_ICONERROR | MB_OK | MB_SYSTEMMODAL
 			);
-			exit(0x57);
+			exit(-1);
 		}
-
-		if (!CheckIfKDMAPIIsUpToDate()) {
-			MessageBox(
-				NULL,
-				"The current version of OmniMIDI is out of date, and won't work with this patch.\n\nPress OK to quit.",
-				"Keppy's Direct MIDI API",
-				MB_ICONERROR | MB_OK | MB_SYSTEMMODAL
-			);
-			exit(0x0A);
-		}
-		
-		IKDMAPIA();				// Initialize the audio stream
-		OMDI = KDMAPI_LOADED;	// The functions loaded successfully, proceed with the initialization
 	}
-	
-	if (OMDI) IOMS();			// Enable the KDMAPI flag in the debug window
+
+	SDD = (MMRESULT*)GetProcAddress(OM, "SendDirectData");			// Send short messages to KDMAPI
+	SDLD = (MMRESULT*)GetProcAddress(OM, "SendDirectLongData");		// Send long messages to KDMAPI
+	mM = (MMRESULT*)GetProcAddress(OM, "modMessage");				// Other stuff from the driver
+	RKDMAPIV = (BOOL*)GetProcAddress(OM, "ReturnKDMAPIVer");		// Used to check KDMAPI
+	IOMS = (void*)GetProcAddress(OM, "InitializeKDMAPIStream");		// Initialize the audio output and the threads
+	TOMS = (void*)GetProcAddress(OM, "TerminateKDMAPIStream");		// Terminate the audio output and the threads
+	ROMS = (void*)GetProcAddress(OM, "ResetKDMAPIStream");			// Reset the audio output and the MIDI channels
+	IKDMAPIA = (BOOL*)GetProcAddress(OM, "IsKDMAPIAvailable");		// Dummy, used to enable the KDMAPI flag in the debug window
+
+	if (!SDD || !SDLD || !IOMS ||
+		!TOMS || !ROMS || !IKDMAPIA ||
+		!mM) {
+		// One of the functions failed to load, exit
+		MessageBox(
+			NULL,
+			"Failed to initialize KDMAPI!\n\nThis patch only works with KDMAPI 1.30.0 or newer!\nIt won't work with other MIDI drivers!\n\nPress OK to quit.",
+			"Keppy's Direct MIDI API",
+			MB_ICONERROR | MB_OK | MB_SYSTEMMODAL
+		);
+		exit(0x57);
+	}
+
+	if (!CheckIfKDMAPIIsUpToDate()) {
+		MessageBox(
+			NULL,
+			"The current version of OmniMIDI is out of date, and won't work with this patch.\n\nPress OK to quit.",
+			"Keppy's Direct MIDI API",
+			MB_ICONERROR | MB_OK | MB_SYSTEMMODAL
+		);
+		exit(0x0A);
+	}
+
+	IKDMAPIA();				// Initialize the audio stream
 }
 
 void InitializeNTDLL() {
@@ -152,7 +166,11 @@ void InitializeNTDLL() {
 #ifdef _DAWRELEASE
 void InitializeWinMM() {
 	// Load WinMM
-	OWINMM = LoadLibrary("C:\\Windows\\system32\\winmm.dll");
+	wchar_t SystemDirectory[MAX_PATH];
+	GetSystemDirectoryW(SystemDirectory, MAX_PATH);
+	wcscat(SystemDirectory, L"\\winmm.dll");
+
+	OWINMM = LoadLibraryW(SystemDirectory);
 	if (!OWINMM) {
 		MessageBox(
 			NULL,
@@ -163,24 +181,21 @@ void InitializeWinMM() {
 		exit(0x0A);
 	}
 
-	if (!OWINMMI) {
-		MMOutGetNumDevs = (UINT*)GetProcAddress(OWINMM, "midiOutGetNumDevs");
-		MMOutGetDevCapsW = (MMRESULT*)GetProcAddress(OWINMM, "midiOutGetDevCapsW");
-		MMOutOpen = (MMRESULT*)GetProcAddress(OWINMM, "midiOutOpen");
-		MMOutClose = (MMRESULT*)GetProcAddress(OWINMM, "midiOutClose");
-		MMOutReset = (MMRESULT*)GetProcAddress(OWINMM, "midiOutReset");
-		MMOutShortMsg = (MMRESULT*)GetProcAddress(OWINMM, "midiOutShortMsg");
-		MMOutPrepareHeader = (MMRESULT*)GetProcAddress(OWINMM, "midiOutPrepareHeader");
-		MMOutUnprepareHeader = (MMRESULT*)GetProcAddress(OWINMM, "midiOutUnprepareHeader");
-		MMOutLongMsg = (MMRESULT*)GetProcAddress(OWINMM, "midiOutLongMsg");
-		MMOutCachePatches = (MMRESULT*)GetProcAddress(OWINMM, "midiOutCachePatches");
-		MMOutCacheDrumPatches = (MMRESULT*)GetProcAddress(OWINMM, "midiOutCacheDrumPatches");
-		MMOutMessage = (MMRESULT*)GetProcAddress(OWINMM, "midiOutMessage");
-		MMOutSetVolume = (MMRESULT*)GetProcAddress(OWINMM, "midiOutSetVolume");
-		MMOutGetVolume = (MMRESULT*)GetProcAddress(OWINMM, "midiOutGetVolume");
-		MMOutGetID = (MMRESULT*)GetProcAddress(OWINMM, "midiOutGetID");
-		OWINMMI = KDMAPI_LOADED;
-	}
+	MMOutGetNumDevs = (UINT*)GetProcAddress(OWINMM, "midiOutGetNumDevs");
+	MMOutGetDevCapsW = (MMRESULT*)GetProcAddress(OWINMM, "midiOutGetDevCapsW");
+	MMOutOpen = (MMRESULT*)GetProcAddress(OWINMM, "midiOutOpen");
+	MMOutClose = (MMRESULT*)GetProcAddress(OWINMM, "midiOutClose");
+	MMOutReset = (MMRESULT*)GetProcAddress(OWINMM, "midiOutReset");
+	MMOutShortMsg = (MMRESULT*)GetProcAddress(OWINMM, "midiOutShortMsg");
+	MMOutPrepareHeader = (MMRESULT*)GetProcAddress(OWINMM, "midiOutPrepareHeader");
+	MMOutUnprepareHeader = (MMRESULT*)GetProcAddress(OWINMM, "midiOutUnprepareHeader");
+	MMOutLongMsg = (MMRESULT*)GetProcAddress(OWINMM, "midiOutLongMsg");
+	MMOutCachePatches = (MMRESULT*)GetProcAddress(OWINMM, "midiOutCachePatches");
+	MMOutCacheDrumPatches = (MMRESULT*)GetProcAddress(OWINMM, "midiOutCacheDrumPatches");
+	MMOutMessage = (MMRESULT*)GetProcAddress(OWINMM, "midiOutMessage");
+	MMOutSetVolume = (MMRESULT*)GetProcAddress(OWINMM, "midiOutSetVolume");
+	MMOutGetVolume = (MMRESULT*)GetProcAddress(OWINMM, "midiOutGetVolume");
+	MMOutGetID = (MMRESULT*)GetProcAddress(OWINMM, "midiOutGetID");
 }
 #endif
 
@@ -190,26 +205,7 @@ BOOL WINAPI DllMain(HINSTANCE hInstDLL, DWORD fdwReason, LPVOID fImpLoad) {
 #ifdef _DAWRELEASE
 		InitializeWinMM();
 #endif
-		// Load the default DLL from the system directory
-		OM = LoadLibrary("C:\\Windows\\system32\\OmniMIDI\\OmniMIDI.dll");
-		if (!OM) {
-			// Failed, try loading it from the app's directory
-			OM = LoadLibrary("OmniMIDI.dll");
-			if (!OM) {
-				// Failed, OmniMIDI is not available, exit the program
-				MessageBox(
-					NULL,
-					"Failed to initialize OmniMIDI!\n\nThis patch will not work with other MIDI drivers.\n\nPress OK to exit.",
-					"Keppy's Direct MIDI API",
-					MB_ICONERROR | MB_OK | MB_SYSTEMMODAL
-				);
-				exit(-1);
-			}
-		}
-	}
-	else if (fdwReason == DLL_PROCESS_DETACH)
-	{
-		TOMS();
+		InitializeOMDirectAPI();
 	}
 	return TRUE;
 }
@@ -250,7 +246,7 @@ MMRESULT WINAPI KDMAPI_midiOutGetDevCapsW(UINT_PTR uDeviceID, LPMIDIOUTCAPSW lpC
 
 	case KDMAPI_UDID:
 		memset(SynthName, 0, MAXPNAMELEN);
-		wcsncpy(SynthName, L"KDMAPI Output\0", MAXPNAMELEN);
+		wcscat(SynthName, L"KDMAPI Output\0");
 		DM = MOD_WAVETABLE;
 
 		// ChecOM done, assign device type
@@ -296,7 +292,7 @@ MMRESULT WINAPI KDMAPI_midiOutGetDevCapsW(UINT_PTR uDeviceID, LPMIDIOUTCAPSW lpC
 
 	if (wcslen(SynthName) < 1 || iswspace(SynthName[0]) || lResult != ERROR_SUCCESS) {
 		ZeroMemory(SynthName, MAXPNAMELEN);
-		wcsncpy(SynthName, L"KDMAPI Output\0", MAXPNAMELEN);
+		wcscat(SynthName, L"KDMAPI Output\0");
 	}
 
 	// Checks done, assign device type
@@ -406,8 +402,8 @@ MMRESULT WINAPI KDMAPI_midiOutOpen(LPHMIDIOUT lphmo, UINT_PTR uDeviceID, DWORD_P
 
 	// If it's asking for OmniMIDI, do everything in-house
 	case KDMAPI_UDID:
-		// Initialize the API
-		InitializeOMDirectAPI();
+		// Initialize MIDI out
+		IOMS();
 
 		// Initialize a dummy out device
 		*lphmo = OMDummy;
@@ -430,8 +426,8 @@ MMRESULT WINAPI KDMAPI_midiOutOpen(LPHMIDIOUT lphmo, UINT_PTR uDeviceID, DWORD_P
 		return retval;
 	}
 #else
-	// Initialize the API
-	InitializeOMDirectAPI();
+	// Initialize MIDI out
+	if (!IOMS()) return MMSYSERR_ALLOCATED;
 
 	// Initialize a dummy out device
 	*lphmo = (HMIDI)0x10001;
@@ -455,7 +451,7 @@ MMRESULT WINAPI KDMAPI_midiOutClose(HMIDIOUT hMidiOut) {
 	if (hMidiOut == OMDummy) {
 #endif
 		// Close OM
-		TOMS();
+		if (!TOMS()) return MMSYSERR_INVALHANDLE;
 		if (WMMC) WMMC(hMidiOut, IsCallbackWindow ? MM_MOM_CLOSE : MOM_CLOSE, WMMCI, 0, 0);
 		return MMSYSERR_NOERROR;
 #ifdef _DAWRELEASE
