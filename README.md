@@ -4,6 +4,8 @@
   A group of functions, that allows you to bypass the Windows Multimedia API, thus getting rid of the lag caused by its slow buffer system.
 </p>
 
+# F.A.Q.
+
 ## What does this do?
 Windows Multimedia Wrapper (as the name says), wraps around the default multimedia library in Windows, **winmm.dll**, and allows users to circumvent the extremely slow buffer that Microsoft has set in Windows 8.1 and Windows 10, when using the **midiOutShortMsg** call.
 
@@ -20,6 +22,13 @@ The first iteration of the *"wrapper"* was literally just **copying winmm.dll fr
 For Windows 10, the second iteration was using **ReactOS' winmm.dll** on Windows 10. That also worked fine, aside from minor issues with the *timeGetTime* function (Which I fixed in later releases of the file).<br/>
 Then, I decided to work on a *wrapper*, which would import the functions from the **real** Windows Multimedia library *(Allowing users to use both Microsoft GS and MIDI input devices)*, while also getting rid of the lag caused by some weird overhead in **midiOutShortMsg** *(When using my MIDI driver, that is ;P)*.<br/>
 Long story short, it was a success. Everything works like it should, and people are happy.
+
+# Known bugs
+## Windows Multimedia Wrapper stock patch
+- None, as far as I know.
+
+## Windows Multimedia Wrapper DAW patch
+- VanBasco Karaoke Player recognizes **KDMAPI Output** as **Microsoft MIDI Mapper** or **Alternative MIDI Mapper**. It doesn't affect the way the patch works.
 
 # License
 See [LICENSE](LICENSE.md).
