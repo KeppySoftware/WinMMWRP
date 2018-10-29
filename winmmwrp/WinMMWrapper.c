@@ -21,7 +21,7 @@
 #define REQ_MAJOR	1
 #define REQ_MINOR	47
 #define REQ_BUILD	2
-#define REQ_REV		1
+#define REQ_REV		8
 
 // KDMAPI version from library
 static DWORD DrvMajor = 0, DrvMinor = 0, DrvBuild = 0, DrvRevision = 0;
@@ -419,8 +419,11 @@ MMRESULT WINAPI KDMAPI_midiOutOpen(LPHMIDIOUT lphmo, UINT_PTR uDeviceID, DWORD_P
 
 	// If it's asking for OmniMIDI, do everything in-house
 	case KDMAPI_UDID:
+		// Close any stream, just to be safe
+		if (!TOMS()) return MMSYSERR_INVALPARAM;
+
 		// Initialize MIDI out
-		IOMS();
+		if (!IOMS()) return MMSYSERR_ALLOCATED;
 
 		// Initialize a dummy out device
 		*lphmo = OMDummy;
@@ -443,6 +446,9 @@ MMRESULT WINAPI KDMAPI_midiOutOpen(LPHMIDIOUT lphmo, UINT_PTR uDeviceID, DWORD_P
 		return retval;
 	}
 #else
+	// Close any stream, just to be safe
+	if (!TOMS()) return MMSYSERR_INVALPARAM;
+
 	// Initialize MIDI out
 	if (!IOMS()) return MMSYSERR_ALLOCATED;
 
