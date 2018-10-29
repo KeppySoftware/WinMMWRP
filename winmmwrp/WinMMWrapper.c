@@ -19,9 +19,12 @@
 
 // Required KDMAPI version
 #define REQ_MAJOR	1
-#define REQ_MINOR	30
-#define REQ_BUILD	0
-#define REQ_REV		51
+#define REQ_MINOR	47
+#define REQ_BUILD	2
+#define REQ_REV		1
+
+// KDMAPI version from library
+static DWORD DrvMajor = 0, DrvMinor = 0, DrvBuild = 0, DrvRevision = 0;
 
 // OM funcs
 static BOOL IsCallbackWindow = FALSE;																					// WMMC
@@ -78,22 +81,45 @@ static int SNT[7] =
 static HMODULE OM = NULL;
 static HMODULE OWINMM = NULL;
 
-BOOL CheckIfKDMAPIIsUpToDate() {
-	DWORD Major, Minor, Build, Revision;
-	RKDMAPIV(&Major, &Minor, &Build, &Revision);
+void CheckIfKDMAPIIsUpToDate() {
+	TCHAR ErrorBuf[1024];
 
-	if (Major < REQ_MAJOR) return FALSE;
-	else {
-		if (Minor < REQ_MINOR) return FALSE;
+	BOOL GoAhead = FALSE;
+	RKDMAPIV(&DrvMajor, &DrvMinor, &DrvBuild, &DrvRevision);
+
+	if (REQ_MAJOR <= DrvMajor) {
+		if (REQ_MAJOR < DrvMajor) GoAhead = TRUE;
 		else {
-			if (Build < REQ_BUILD) return FALSE;
-			else {
-				if (Revision < REQ_REV) return FALSE;
+			if (REQ_MINOR <= DrvMinor) {
+				if (REQ_MINOR < DrvMinor) GoAhead = TRUE;
+				else {
+					if (REQ_BUILD <= DrvBuild) {
+						if (REQ_BUILD < DrvBuild) GoAhead = TRUE;
+						else {
+							if (REQ_REV <= DrvRevision) GoAhead = TRUE;
+						}			
+					}
+				}
 			}
 		}
 	}
 
-	return TRUE;
+	if (!GoAhead) {
+		sprintf_s(
+			ErrorBuf, 
+			1024, 
+			"This patch requires KDMAPI v%d.%d.%d.%d, but OmniMIDI is reporting KDMAPI v%d.%d.%d.%d.\nThis patch won't work with the current version of OmniMIDI installed, please update it.\n\nPress OK to quit.",
+			REQ_MAJOR, REQ_MINOR, REQ_BUILD, REQ_REV, DrvMajor, DrvMinor, DrvBuild, DrvRevision);
+
+		MessageBox(
+			NULL,
+			ErrorBuf,
+			"Windows Multimedia Wrapper",
+			MB_ICONERROR | MB_OK | MB_SYSTEMMODAL
+		);
+
+		exit(0x0A);
+	}
 }
 
 void InitializeOMDirectAPI() {
@@ -140,17 +166,8 @@ void InitializeOMDirectAPI() {
 		exit(0x57);
 	}
 
-	if (!CheckIfKDMAPIIsUpToDate()) {
-		MessageBox(
-			NULL,
-			"The current version of OmniMIDI is out of date, and won't work with this patch.\n\nPress OK to quit.",
-			"Keppy's Direct MIDI API",
-			MB_ICONERROR | MB_OK | MB_SYSTEMMODAL
-		);
-		exit(0x0A);
-	}
-
-	IKDMAPIA();				// Initialize the audio stream
+	CheckIfKDMAPIIsUpToDate();	// Check if it's up to date before initializing
+	IKDMAPIA();					// Initialize the audio stream
 }
 
 void InitializeNTDLL() {
