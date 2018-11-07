@@ -262,8 +262,8 @@ MMRESULT WINAPI KDMAPI_midiOutGetDevCapsW(UINT_PTR uDeviceID, LPMIDIOUTCAPSW lpC
 		return MMOutGetDevCapsW(uDeviceID, lpCaps, uSize);
 
 	case KDMAPI_UDID:
-		memset(SynthName, 0, MAXPNAMELEN);
-		wcscat(SynthName, L"KDMAPI Output\0");
+		ZeroMemory(SynthName, MAXPNAMELEN);
+		wcscat(SynthName, L"KDMAPI Output to OmniMIDI\0");
 		DM = MOD_WAVETABLE;
 
 		// ChecOM done, assign device type
@@ -272,7 +272,7 @@ MMRESULT WINAPI KDMAPI_midiOutGetDevCapsW(UINT_PTR uDeviceID, LPMIDIOUTCAPSW lpC
 		// Assign values
 		myCapsW.wMid = VID;
 		myCapsW.wPid = PID;
-		memcpy(myCapsW.szPname, SynthName, sizeof(SynthName));
+		wcsncpy(myCapsW.szPname, SynthName, 32);
 		myCapsW.wVoices = 0xFFFF;
 		myCapsW.wNotes = 0x0000;
 		myCapsW.wTechnology = DM;
@@ -318,7 +318,7 @@ MMRESULT WINAPI KDMAPI_midiOutGetDevCapsW(UINT_PTR uDeviceID, LPMIDIOUTCAPSW lpC
 	// Assign values
 	myCapsW.wMid = VID;
 	myCapsW.wPid = PID;
-	memcpy(myCapsW.szPname, SynthName, sizeof(SynthName));
+	wcsncpy(myCapsW.szPname, SynthName, 32);
 	myCapsW.wVoices = 0xFFFF;
 	myCapsW.wNotes = 0x0000;
 	myCapsW.wTechnology = DM;
@@ -341,33 +341,10 @@ MMRESULT WINAPI KDMAPI_midiOutGetDevCapsA(UINT_PTR uDeviceID, LPMIDIOUTCAPSA lpC
 	UINT ret;
 
 #ifdef _DAWRELEASE
-	switch (uDeviceID) {
-	case MIDI_MAPPER:
-		ret = MMOutGetDevCapsW(uDeviceID, &myCapsW, sizeof(myCapsW));
-	case KDMAPI_UDID:
-		ret = KDMAPI_midiOutGetDevCapsW(KDMAPI_UDID, &myCapsW, sizeof(myCapsW));
-	default:
-		ret = MMOutGetDevCapsW(uDeviceID - 1, &myCapsW, sizeof(myCapsW));
-	}
-
-	// Translate them to ASCII/Multibyte
-	if (ret == MMSYSERR_NOERROR) {
-		MIDIOUTCAPSA myCapsA;
-		myCapsA.wMid = myCapsW.wMid;
-		myCapsA.wPid = myCapsW.wPid;
-		myCapsA.vDriverVersion = myCapsW.vDriverVersion;
-		WideCharToMultiByte(CP_ACP, 0, myCapsW.szPname, -1, myCapsA.szPname,
-			sizeof(myCapsA.szPname), NULL, NULL);
-		myCapsA.wTechnology = myCapsW.wTechnology;
-		myCapsA.wVoices = myCapsW.wVoices;
-		myCapsA.wNotes = myCapsW.wNotes;
-		myCapsA.wChannelMask = myCapsW.wChannelMask;
-		myCapsA.dwSupport = myCapsW.dwSupport;
-		memcpy(lpCaps, &myCapsA, min(uSize, sizeof(myCapsA)));
-	}
-	return ret;
+	ret = KDMAPI_midiOutGetDevCapsW(uDeviceID, &myCapsW, sizeof(myCapsW));
 #else
 	ret = KDMAPI_midiOutGetDevCapsW(0, &myCapsW, sizeof(myCapsW));
+#endif
 
 	// Translate them to ASCII/Multibyte
 	if (ret == MMSYSERR_NOERROR) {
@@ -375,8 +352,7 @@ MMRESULT WINAPI KDMAPI_midiOutGetDevCapsA(UINT_PTR uDeviceID, LPMIDIOUTCAPSA lpC
 		myCapsA.wMid = myCapsW.wMid;
 		myCapsA.wPid = myCapsW.wPid;
 		myCapsA.vDriverVersion = myCapsW.vDriverVersion;
-		WideCharToMultiByte(CP_ACP, 0, myCapsW.szPname, -1, myCapsA.szPname,
-			sizeof(myCapsA.szPname), NULL, NULL);
+		wcstombs(myCapsA.szPname, myCapsW.szPname, wcslen(myCapsW.szPname) + 1);
 		myCapsA.wTechnology = myCapsW.wTechnology;
 		myCapsA.wVoices = myCapsW.wVoices;
 		myCapsA.wNotes = myCapsW.wNotes;
@@ -385,15 +361,7 @@ MMRESULT WINAPI KDMAPI_midiOutGetDevCapsA(UINT_PTR uDeviceID, LPMIDIOUTCAPSA lpC
 		memcpy(lpCaps, &myCapsA, min(uSize, sizeof(myCapsA)));
 	}
 	return ret;
-#endif
 }
-
-#ifdef _DAWRELEASE
-MMRESULT WINAPI STOCK_midiOutShortMsg(HMIDIOUT hMidiOut, DWORD dwMsg) {
-	MMRESULT ret = MMOutShortMsg(hMidiOut, dwMsg);
-	return ret;
-}
-#endif
 
 MMRESULT WINAPI KDMAPI_midiOutShortMsg(HMIDIOUT hMidiOut, DWORD dwMsg) {
 #ifdef _DAWRELEASE
