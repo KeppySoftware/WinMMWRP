@@ -28,7 +28,7 @@ Long story short, it was a success. Everything works like it should, and people 
 - None, as far as I know.
 
 ## Windows Multimedia Wrapper DAW patch
-- VanBasco Karaoke Player recognizes **KDMAPI Output** as **Microsoft MIDI Mapper** or **Alternative MIDI Mapper**. It doesn't affect the way the patch works.
+- None, as far as I know.
 
 # License
 See [LICENSE](LICENSE.md).
