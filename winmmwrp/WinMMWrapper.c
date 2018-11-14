@@ -21,7 +21,7 @@
 #define REQ_MAJOR	1
 #define REQ_MINOR	47
 #define REQ_BUILD	2
-#define REQ_REV		8
+#define REQ_REV		21
 
 // KDMAPI version from library
 static DWORD DrvMajor = 0, DrvMinor = 0, DrvBuild = 0, DrvRevision = 0;
@@ -29,6 +29,7 @@ static DWORD DrvMajor = 0, DrvMinor = 0, DrvBuild = 0, DrvRevision = 0;
 // OM funcs
 static BOOL IsCallbackWindow = FALSE;																					// WMMC
 static HMIDIOUT OMDummy = 0x10001;																						// Dummy pointer, used for KDMAPI Output
+static void(WINAPI*SCE)(DWORD eventtype, DWORD chan, DWORD param) = 0;													// SendCustomEvent
 static MMRESULT(WINAPI*SDD)(DWORD msg) = 0;																				// SendDirectData
 static MMRESULT(WINAPI*SDLD)(MIDIHDR* IIMidiHdr) = 0;																	// SendDirectLongData
 static MMRESULT(WINAPI*mM)(UINT uDeviceID, UINT uMsg, DWORD_PTR dwUser, DWORD_PTR dwParam1, DWORD_PTR dwParam2) = 0;	// modMessage
@@ -144,6 +145,7 @@ void InitializeOMDirectAPI() {
 		}
 	}
 
+	SCE = (void*)GetProcAddress(OM, "SendCustomEvent");				// Send custom messages to KDMAPI
 	SDD = (MMRESULT*)GetProcAddress(OM, "SendDirectData");			// Send short messages to KDMAPI
 	SDLD = (MMRESULT*)GetProcAddress(OM, "SendDirectLongData");		// Send long messages to KDMAPI
 	mM = (MMRESULT*)GetProcAddress(OM, "modMessage");				// Other stuff from the driver
@@ -226,7 +228,6 @@ BOOL WINAPI DllMain(HINSTANCE hInstDLL, DWORD fdwReason, LPVOID fImpLoad) {
 	}
 	return TRUE;
 }
-
 
 UINT WINAPI KDMAPI_midiOutGetNumDevs(void) {
 #ifdef _DAWRELEASE
