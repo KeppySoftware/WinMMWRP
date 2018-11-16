@@ -1,6 +1,4 @@
 #include <Windows.h>
-#include <stdio.h>
-#include <Winuser.h>
 
 #define KDMAPI_UDID			0		// KDMAPI default uDeviceID
 #define KDMAPI_NOTLOADED	0		// KDMAPI is not loaded
@@ -27,64 +25,57 @@
 static DWORD DrvMajor = 0, DrvMinor = 0, DrvBuild = 0, DrvRevision = 0;
 
 // OM funcs
+static HMODULE OM = NULL;
 static BOOL IsCallbackWindow = FALSE;																					// WMMC
 static HMIDIOUT OMDummy = 0x10001;																						// Dummy pointer, used for KDMAPI Output
-static void(WINAPI*SCE)(DWORD eventtype, DWORD chan, DWORD param) = 0;													// SendCustomEvent
-static MMRESULT(WINAPI*SDD)(DWORD msg) = 0;																				// SendDirectData
-static MMRESULT(WINAPI*SDLD)(MIDIHDR* IIMidiHdr) = 0;																	// SendDirectLongData
-static MMRESULT(WINAPI*mM)(UINT uDeviceID, UINT uMsg, DWORD_PTR dwUser, DWORD_PTR dwParam1, DWORD_PTR dwParam2) = 0;	// modMessage
-static BOOL(WINAPI*RKDMAPIV)(DWORD *Major, DWORD *Minor, DWORD *Build, DWORD *Revision) = 0;							// ReturnKDMAPIVer
-static BOOL(WINAPI*IOMS)(void) = 0;																						// InitializeKDMAPIStream
-static BOOL(WINAPI*TOMS)(void) = 0;																						// TerminateKDMAPIStream
-static void(WINAPI*ROMS)(void) = 0;																						// ResetKDMAPIStream
-static BOOL(WINAPI*IKDMAPIA)(void) = 0;																					// IsKDMAPIAvailable
+static VOID(WINAPI*SCE)(DWORD, DWORD, DWORD) = 0;																		// SendCustomEvent
+static MMRESULT(WINAPI*SDD)(DWORD) = 0;																					// SendDirectData
+static MMRESULT(WINAPI*SDLD)(LPMIDIHDR) = 0;																			// SendDirectLongData
+static MMRESULT(WINAPI*mM)(UINT, UINT, DWORD_PTR, DWORD_PTR, DWORD_PTR) = 0;											// modMessage
+static BOOL(WINAPI*RKDMAPIV)(LPDWORD, LPDWORD, LPDWORD, LPDWORD) = 0;													// ReturnKDMAPIVer
+static BOOL(WINAPI*IOMS)(VOID) = 0;																						// InitializeKDMAPIStream
+static BOOL(WINAPI*TOMS)(VOID) = 0;																						// TerminateKDMAPIStream
+static VOID(WINAPI*ROMS)(VOID) = 0;																						// ResetKDMAPIStream
+static BOOL(WINAPI*IKDMAPIA)(VOID) = 0;																					// IsKDMAPIAvailable
 
 // NTDLL funcs
-static NTSTATUS(NTAPI*NtLockVirtualMemory)(IN HANDLE process, IN OUT void** baseAddress, IN OUT ULONG* size, IN ULONG flags);
-static NTSTATUS(NTAPI*NtUnlockVirtualMemory)(IN HANDLE process, IN OUT void** baseAddress, IN OUT ULONG* size, IN ULONG flags);
-static NTSTATUS(NTAPI*NtDelayExecution)(BOOLEAN dwAlertable, PLARGE_INTEGER dwDelayInterval);
+static NTSTATUS(NTAPI*NtLockVirtualMemory)(IN HANDLE, IN OUT void**, IN OUT ULONG*, IN ULONG);
+static NTSTATUS(NTAPI*NtUnlockVirtualMemory)(IN HANDLE, IN OUT void**, IN OUT ULONG*, IN ULONG);
+static NTSTATUS(NTAPI*NtDelayExecution)(BOOLEAN, PLARGE_INTEGER);
 
-#ifdef _DAWRELEASE
 // WinMM funcs, just replace MM with "midiOut" to get the real version
-static UINT(WINAPI*MMOutGetNumDevs)(void) = 0;
-static MMRESULT(WINAPI*MMOutGetDevCapsW)(UINT_PTR uDeviceID, LPMIDIOUTCAPSW lpCaps, UINT uSize) = 0;
-static MMRESULT(WINAPI*MMOutOpen)(LPHMIDIOUT lphMidiOut, UINT uDeviceID, DWORD_PTR dwCallback, DWORD_PTR dwCallbackInstance, DWORD dwFlags) = 0;
-static MMRESULT(WINAPI*MMOutClose)(HMIDIOUT hMidiOut) = 0;
-static MMRESULT(WINAPI*MMOutReset)(HMIDIOUT hMidiOut) = 0;
-static MMRESULT(WINAPI*MMOutShortMsg)(HMIDIOUT hMidiOut, DWORD dwMsg) = 0;
-static MMRESULT(WINAPI*MMOutPrepareHeader)(HMIDIOUT hMidiOut, MIDIHDR* lpMidiOutHdr, UINT uSize) = 0;
-static MMRESULT(WINAPI*MMOutUnprepareHeader)(HMIDIOUT hMidiOut, MIDIHDR* lpMidiOutHdr, UINT uSize) = 0;
-static MMRESULT(WINAPI*MMOutLongMsg)(HMIDIOUT hMidiOut, MIDIHDR* lpMidiOutHdr, UINT uSize) = 0;
-static MMRESULT(WINAPI*MMOutCachePatches)(HMIDIOUT hMidiOut, UINT wPatch, WORD *lpPatchArray, UINT wFlags) = 0;
-static MMRESULT(WINAPI*MMOutCacheDrumPatches)(HMIDIOUT hMidiOut, UINT wPatch, WORD *lpKeyArray, UINT wFlags) = 0;
-static MMRESULT(WINAPI*MMOutMessage)(HMIDIOUT hMidiOut, UINT uMsg, DWORD_PTR dw1, DWORD_PTR dw2) = 0;
-static MMRESULT(WINAPI*MMOutSetVolume)(HMIDIOUT hMidiOut, DWORD dwVolume) = 0;
-static MMRESULT(WINAPI*MMOutGetVolume)(HMIDIOUT hMidiOut, LPDWORD lpdwVolume) = 0;
-static MMRESULT(WINAPI*MMOutGetID)(HMIDIOUT hMidiOut, LPUINT puDeviceID) = 0;
+static HMODULE OWINMM = NULL;
+#ifdef _DAWRELEASE
+
+static UINT(WINAPI*MMOutGetNumDevs)(VOID) = 0;
+static MMRESULT(WINAPI*MMOutGetDevCapsW)(UINT_PTR, LPMIDIOUTCAPSW, UINT) = 0;
+static MMRESULT(WINAPI*MMOutOpen)(LPHMIDIOUT, UINT, DWORD_PTR, DWORD_PTR, DWORD) = 0;
+static MMRESULT(WINAPI*MMOutClose)(HMIDIOUT) = 0;
+static MMRESULT(WINAPI*MMOutReset)(HMIDIOUT) = 0;
+static MMRESULT(WINAPI*MMOutShortMsg)(HMIDIOUT, DWORD) = 0;
+static MMRESULT(WINAPI*MMOutPrepareHeader)(HMIDIOUT, LPMIDIHDR, UINT) = 0;
+static MMRESULT(WINAPI*MMOutUnprepareHeader)(HMIDIOUT, LPMIDIHDR, UINT) = 0;
+static MMRESULT(WINAPI*MMOutLongMsg)(HMIDIOUT, LPMIDIHDR, UINT) = 0;
+static MMRESULT(WINAPI*MMOutCachePatches)(HMIDIOUT, UINT, LPWORD, UINT) = 0;
+static MMRESULT(WINAPI*MMOutCacheDrumPatches)(HMIDIOUT, UINT, LPWORD, UINT) = 0;
+static MMRESULT(WINAPI*MMOutMessage)(HMIDIOUT, UINT, DWORD_PTR, DWORD_PTR) = 0;
+static MMRESULT(WINAPI*MMOutSetVolume)(HMIDIOUT, DWORD) = 0;
+static MMRESULT(WINAPI*MMOutGetVolume)(HMIDIOUT, LPDWORD) = 0;
+static MMRESULT(WINAPI*MMOutGetID)(HMIDIOUT, LPUINT) = 0;
 #endif
+static MMRESULT(WINAPI*MMtimeGetDevCaps)(LPTIMECAPS, UINT) = 0;
+static MMRESULT(WINAPI*MMtimeSetEvent)(UINT, UINT, LPTIMECALLBACK, DWORD_PTR, UINT) = 0;
+static MMRESULT(WINAPI*MMtimeKillEvent)(UINT) = 0;
+static DWORD(WINAPI*MMtimeGetTime)(VOID) = 0;
+static MMRESULT(WINAPI*MMtimeGetSystemTime)(LPMMTIME, UINT) = 0;
+static MMRESULT(WINAPI*MMtimeBeginPeriod)(UINT) = 0;
+static MMRESULT(WINAPI*MMtimeEndPeriod)(UINT) = 0;
 
 // Callback, used for old apps that require one
 static DWORD_PTR WMMCI;
-static void(CALLBACK*WMMC)(HMIDIOUT hmo, DWORD wMsg, DWORD_PTR dwInstance, DWORD_PTR dwParam1, DWORD_PTR dwParam2) = 0;
-
-static int ST = 4;
-static int SNT[7] =
-{
-	MOD_FMSYNTH,
-	MOD_SYNTH,
-	MOD_WAVETABLE,
-	MOD_MAPPER,
-	MOD_MIDIPORT,
-	MOD_SWSYNTH,
-	MOD_SQSYNTH
-};
-
-static HMODULE OM = NULL;
-static HMODULE OWINMM = NULL;
+static VOID(CALLBACK*WMMC)(HMIDIOUT, DWORD, DWORD_PTR, DWORD_PTR, DWORD_PTR) = 0;
 
 void CheckIfKDMAPIIsUpToDate() {
-	TCHAR ErrorBuf[1024];
-
 	BOOL GoAhead = FALSE;
 	RKDMAPIV(&DrvMajor, &DrvMinor, &DrvBuild, &DrvRevision);
 
@@ -106,6 +97,8 @@ void CheckIfKDMAPIIsUpToDate() {
 	}
 
 	if (!GoAhead) {
+		TCHAR ErrorBuf[1024];
+
 		sprintf_s(
 			ErrorBuf, 
 			1024, 
@@ -182,7 +175,7 @@ void InitializeNTDLL() {
 	}
 }
 
-#ifdef _DAWRELEASE
+
 void InitializeWinMM() {
 	// Load WinMM
 	wchar_t SystemDirectory[MAX_PATH];
@@ -193,13 +186,14 @@ void InitializeWinMM() {
 	if (!OWINMM) {
 		MessageBox(
 			NULL,
-			"Failed to initialize the Windows Multimedia API!\nAre you trying to use the patch on Windows 98 or something like that?\n\nPress OK to exit.",
+			"Failed to initialize the Windows Multimedia API!\nThe interpreter won't work if Windows Multimedia isn't present.\n(P.S. WINE isn't supported.)\n\nPress OK to exit.",
 			"OMDirect API",
 			MB_ICONERROR | MB_OK | MB_SYSTEMMODAL
 		);
 		exit(0x0A);
 	}
 
+#ifdef _DAWRELEASE
 	MMOutGetNumDevs = (UINT*)GetProcAddress(OWINMM, "midiOutGetNumDevs");
 	MMOutGetDevCapsW = (MMRESULT*)GetProcAddress(OWINMM, "midiOutGetDevCapsW");
 	MMOutOpen = (MMRESULT*)GetProcAddress(OWINMM, "midiOutOpen");
@@ -215,15 +209,21 @@ void InitializeWinMM() {
 	MMOutSetVolume = (MMRESULT*)GetProcAddress(OWINMM, "midiOutSetVolume");
 	MMOutGetVolume = (MMRESULT*)GetProcAddress(OWINMM, "midiOutGetVolume");
 	MMOutGetID = (MMRESULT*)GetProcAddress(OWINMM, "midiOutGetID");
-}
 #endif
+	MMtimeGetDevCaps = (MMRESULT*)GetProcAddress(OWINMM, "timeGetDevCaps");
+	MMtimeSetEvent = (MMRESULT*)GetProcAddress(OWINMM, "timeSetEvent");
+	MMtimeKillEvent = (MMRESULT*)GetProcAddress(OWINMM, "timeKillEvent");
+	MMtimeGetTime = (DWORD*)GetProcAddress(OWINMM, "timeGetTime");
+	MMtimeGetSystemTime = (MMRESULT*)GetProcAddress(OWINMM, "timeGetSystemTime");
+	MMtimeBeginPeriod = (MMRESULT*)GetProcAddress(OWINMM, "timeBeginPeriod");
+	MMtimeEndPeriod = (MMRESULT*)GetProcAddress(OWINMM, "timeEndPeriod");
+}
+
 
 BOOL WINAPI DllMain(HINSTANCE hInstDLL, DWORD fdwReason, LPVOID fImpLoad) {
 	if (fdwReason == DLL_PROCESS_ATTACH) {
 		InitializeNTDLL();
-#ifdef _DAWRELEASE
 		InitializeWinMM();
-#endif
 		InitializeOMDirectAPI();
 	}
 	return TRUE;
@@ -240,19 +240,6 @@ UINT WINAPI KDMAPI_midiOutGetNumDevs(void) {
 
 MMRESULT WINAPI KDMAPI_midiOutGetDevCapsW(UINT_PTR uDeviceID, LPMIDIOUTCAPSW lpCaps, UINT uSize) {
 	MIDIOUTCAPSW myCapsW;
-	DWORD CapsSupport = MIDICAPS_VOLUME;
-
-	wchar_t SynthName[MAXPNAMELEN];
-	WORD VID = 0xFFFF;
-	WORD PID = 0x000A;
-	DWORD DM = MOD_SWSYNTH;
-
-	// Read key
-	HKEY hKey;
-	long lResult;
-	DWORD dwType;
-	DWORD dwSize = sizeof(DWORD);
-	DWORD dwSizeW = sizeof(SynthName);
 
 	// Return the output device, but Unicode (UTF-8)
 	if (lpCaps == NULL) return MMSYSERR_INVALPARAM;
@@ -263,20 +250,13 @@ MMRESULT WINAPI KDMAPI_midiOutGetDevCapsW(UINT_PTR uDeviceID, LPMIDIOUTCAPSW lpC
 		return MMOutGetDevCapsW(uDeviceID, lpCaps, uSize);
 
 	case KDMAPI_UDID:
-		ZeroMemory(SynthName, MAXPNAMELEN);
-		wcscat(SynthName, L"KDMAPI Output to OmniMIDI\0");
-		DM = MOD_WAVETABLE;
-
-		// ChecOM done, assign device type
-		DM = SNT[ST];
-
 		// Assign values
-		myCapsW.wMid = VID;
-		myCapsW.wPid = PID;
-		wcsncpy(myCapsW.szPname, SynthName, 32);
+		myCapsW.wMid = 0xFFFF;
+		myCapsW.wPid = 0x000A;
+		wcsncpy(myCapsW.szPname, L"KDMAPI Output to OmniMIDI", MAXPNAMELEN);
 		myCapsW.wVoices = 0xFFFF;
 		myCapsW.wNotes = 0x0000;
-		myCapsW.wTechnology = DM;
+		myCapsW.wTechnology = MOD_MIDIPORT;
 		myCapsW.wChannelMask = 0xFFFF;
 		myCapsW.dwSupport = MIDICAPS_VOLUME;
 
@@ -291,38 +271,13 @@ MMRESULT WINAPI KDMAPI_midiOutGetDevCapsW(UINT_PTR uDeviceID, LPMIDIOUTCAPSW lpC
 #else
 	if (uDeviceID > 0) return MMSYSERR_BADDEVICEID;
 
-	LSTATUS RegKey = RegOpenKeyEx(HKEY_CURRENT_USER, "Software\\OmniMIDI\\Configuration", 0, KEY_ALL_ACCESS, &hKey);
-	if (RegKey == ERROR_SUCCESS) {
-		dwType = REG_DWORD;
-		RegQueryValueEx(hKey, "SynthType", NULL, &dwType, (LPBYTE)&ST, &dwSize);
-		RegQueryValueEx(hKey, "VID", NULL, &dwType, (LPBYTE)&VID, &dwSize);
-		RegQueryValueEx(hKey, "PID", NULL, &dwType, (LPBYTE)&PID, &dwSize);
-
-		dwType = REG_SZ;
-		lResult = RegQueryValueExW(hKey, L"SynthName", NULL, &dwType, (LPBYTE)&SynthName, &dwSizeW);
-		RegCloseKey(hKey);
-		// Done reading, close key
-	}
-
-	// Some checks
-	if (ST < 0 || ST > 6) ST = 4;
-	else ST = MOD_SWSYNTH;
-
-	if (wcslen(SynthName) < 1 || iswspace(SynthName[0]) || lResult != ERROR_SUCCESS) {
-		ZeroMemory(SynthName, MAXPNAMELEN);
-		wcscat(SynthName, L"KDMAPI Output\0");
-	}
-
-	// Checks done, assign device type
-	DM = SNT[ST];
-
 	// Assign values
-	myCapsW.wMid = VID;
-	myCapsW.wPid = PID;
-	wcsncpy(myCapsW.szPname, SynthName, 32);
+	myCapsW.wMid = 0xFFFF;
+	myCapsW.wPid = 0x000A;
+	wcsncpy(myCapsW.szPname, L"KDMAPI Output to OmniMIDI", MAXPNAMELEN);
 	myCapsW.wVoices = 0xFFFF;
 	myCapsW.wNotes = 0x0000;
-	myCapsW.wTechnology = DM;
+	myCapsW.wTechnology = MOD_MIDIPORT;
 	myCapsW.wChannelMask = 0xFFFF;
 	myCapsW.dwSupport = MIDICAPS_VOLUME;
 
@@ -400,7 +355,7 @@ MMRESULT WINAPI KDMAPI_midiOutOpen(LPHMIDIOUT lphmo, UINT_PTR uDeviceID, DWORD_P
 		// Setup the Callback (If there's one) - NEEDED FOR VANBASCO!
 		// If dwflags is CALLBACK_EVENT, then skip, since it's not needed. (Java pls)
 		if ((dwFlags != CALLBACK_NULL) && (dwFlags != CALLBACK_EVENT)) {
-			WMMC = (void*)dwCallback;
+			WMMC = (VOID*)dwCallback;
 			WMMCI = dwCallbackInstance;
 
 			IsCallbackWindow = (dwFlags == CALLBACK_WINDOW);
@@ -583,7 +538,35 @@ MMRESULT WINAPI KDMAPI_midiOutGetID(HMIDIOUT hMidiOut, LPUINT puDeviceID) {
 	return MMSYSERR_NOERROR;
 }
 
-UINT WINAPI KDMAPI_mmsystemGetVersion() {
+MMRESULT WINAPI KDMAPI_timeGetDevCaps(LPTIMECAPS ptc, UINT cbtc) {
+	return MMtimeGetDevCaps(ptc, cbtc);
+}
+
+MMRESULT WINAPI KDMAPI_timeSetEvent(UINT uDelay, UINT uResolution, LPTIMECALLBACK lpTimeProc, DWORD_PTR dwUser, UINT fuEvent) {
+	return MMtimeSetEvent(uDelay, uResolution, lpTimeProc, dwUser, fuEvent);
+}
+
+MMRESULT WINAPI KDMAPI_timeKillEvent(UINT uTimerID) {
+	return MMtimeKillEvent(uTimerID);
+}
+
+DWORD WINAPI KDMAPI_timeGetTime() {
+	return MMtimeGetTime();
+}
+
+MMRESULT WINAPI KDMAPI_timeGetSystemTime(LPMMTIME pmmt, UINT cbmmt) {
+	return MMtimeGetSystemTime(pmmt, cbmmt);
+}
+
+MMRESULT WINAPI KDMAPI_timeBeginPeriod(UINT uPeriod) {
+	return MMtimeBeginPeriod(uPeriod);
+}
+
+MMRESULT WINAPI KDMAPI_timeEndPeriod(UINT uPeriod) {
+	return MMtimeEndPeriod(uPeriod);
+}
+
+UINT WINAPI KDMAPI_mmsystemGetVersion(void) {
 	// Dummy, not needed
 	return 0x0502U;
 }
