@@ -140,7 +140,6 @@ EXPORTS
     timeGetDevCaps                   = KDMAPI_timeGetDevCaps
     timeGetSystemTime                = KDMAPI_timeGetSystemTime
     timeGetTime                      = KDMAPI_timeGetTime
-	timeGetTime64                    = KDMAPI_timeGetTime64
     timeKillEvent                    = KDMAPI_timeKillEvent
     timeSetEvent                     = KDMAPI_timeSetEvent
     waveInAddBuffer                  = c:\\windows\\system32\\winmm.waveInAddBuffer

@@ -1,4 +1,5 @@
 #include <Windows.h>
+#include <time.h>
 
 #define KDMAPI_UDID			0		// KDMAPI default uDeviceID
 #define KDMAPI_NOTLOADED	0		// KDMAPI is not loaded
@@ -25,6 +26,7 @@
 static DWORD DrvMajor = 0, DrvMinor = 0, DrvBuild = 0, DrvRevision = 0;
 
 // OM funcs
+static clock_t Start;
 static HMODULE OM = NULL;
 static BOOL IsCallbackWindow = FALSE;																					// WMMC
 static HMIDIOUT OMDummy = 0x10001;																						// Dummy pointer, used for KDMAPI Output
@@ -223,6 +225,7 @@ BOOL WINAPI DllMain(HINSTANCE hInstDLL, DWORD fdwReason, LPVOID fImpLoad) {
 		InitializeNTDLL();
 		InitializeWinMM();
 		InitializeOMDirectAPI();
+		Start = clock();
 	}
 	return TRUE;
 }
@@ -548,14 +551,8 @@ MMRESULT WINAPI KDMAPI_timeKillEvent(UINT uTimerID) {
 	return MMtimeKillEvent(uTimerID);
 }
 
-DWORD64 WINAPI KDMAPI_timeGetTime64() {
-	LARGE_INTEGER Time;
-	NtQuerySystemTime(&Time);
-	return Time.QuadPart / 10000;
-}
-
 DWORD WINAPI KDMAPI_timeGetTime() {
-	return (DWORD)KDMAPI_timeGetTime64();
+	return clock() - Start;
 }
 
 MMRESULT WINAPI KDMAPI_timeGetSystemTime(LPMMTIME pmmt, UINT cbmmt) {
