@@ -39,9 +39,9 @@ static VOID(WINAPI*ROMS)(VOID) = 0;																						// ResetKDMAPIStream
 static BOOL(WINAPI*IKDMAPIA)(VOID) = 0;																					// IsKDMAPIAvailable
 
 // NTDLL funcs
+static NTSTATUS(NTAPI*NtQuerySystemTime)(OUT PLARGE_INTEGER);
 static NTSTATUS(NTAPI*NtLockVirtualMemory)(IN HANDLE, IN OUT void**, IN OUT ULONG*, IN ULONG);
 static NTSTATUS(NTAPI*NtUnlockVirtualMemory)(IN HANDLE, IN OUT void**, IN OUT ULONG*, IN ULONG);
-static NTSTATUS(NTAPI*NtDelayExecution)(BOOLEAN, PLARGE_INTEGER);
 
 // WinMM funcs, just replace MM with "midiOut" to get the real version
 static HMODULE OWINMM = NULL;
@@ -166,15 +166,14 @@ void InitializeOMDirectAPI() {
 }
 
 void InitializeNTDLL() {
-	NtDelayExecution = (NTSTATUS*)GetProcAddress(GetModuleHandle("ntdll"), "NtDelayExecution");
+	NtQuerySystemTime = (NTSTATUS*)GetProcAddress(GetModuleHandle("ntdll"), "NtQuerySystemTime");
 	NtLockVirtualMemory = (NTSTATUS*)GetProcAddress(GetModuleHandle("ntdll"), "NtLockVirtualMemory");
 	NtUnlockVirtualMemory = (NTSTATUS*)GetProcAddress(GetModuleHandle("ntdll"), "NtUnlockVirtualMemory");
-	if (!NtDelayExecution || !NtLockVirtualMemory || !NtUnlockVirtualMemory) {
+	if (!NtQuerySystemTime || !NtLockVirtualMemory || !NtUnlockVirtualMemory) {
 		MessageBox(NULL, "Failed to parse functions from NTDLL!\nPress OK to quit.", "OmniMIDI - FATAL ERROR", MB_OK | MB_ICONERROR | MB_SYSTEMMODAL);
 		exit(0x0A);
 	}
 }
-
 
 void InitializeWinMM() {
 	// Load WinMM
@@ -218,7 +217,6 @@ void InitializeWinMM() {
 	MMtimeBeginPeriod = (MMRESULT*)GetProcAddress(OWINMM, "timeBeginPeriod");
 	MMtimeEndPeriod = (MMRESULT*)GetProcAddress(OWINMM, "timeEndPeriod");
 }
-
 
 BOOL WINAPI DllMain(HINSTANCE hInstDLL, DWORD fdwReason, LPVOID fImpLoad) {
 	if (fdwReason == DLL_PROCESS_ATTACH) {
@@ -550,8 +548,14 @@ MMRESULT WINAPI KDMAPI_timeKillEvent(UINT uTimerID) {
 	return MMtimeKillEvent(uTimerID);
 }
 
+DWORD64 WINAPI KDMAPI_timeGetTime64() {
+	LARGE_INTEGER Time;
+	NtQuerySystemTime(&Time);
+	return Time.QuadPart / 10000;
+}
+
 DWORD WINAPI KDMAPI_timeGetTime() {
-	return MMtimeGetTime();
+	return (DWORD)KDMAPI_timeGetTime64();
 }
 
 MMRESULT WINAPI KDMAPI_timeGetSystemTime(LPMMTIME pmmt, UINT cbmmt) {
@@ -559,11 +563,11 @@ MMRESULT WINAPI KDMAPI_timeGetSystemTime(LPMMTIME pmmt, UINT cbmmt) {
 }
 
 MMRESULT WINAPI KDMAPI_timeBeginPeriod(UINT uPeriod) {
-	return MMtimeBeginPeriod(uPeriod);
+	return TIMERR_NOERROR;
 }
 
 MMRESULT WINAPI KDMAPI_timeEndPeriod(UINT uPeriod) {
-	return MMtimeEndPeriod(uPeriod);
+	return TIMERR_NOERROR;
 }
 
 UINT WINAPI KDMAPI_mmsystemGetVersion(void) {
@@ -571,6 +575,6 @@ UINT WINAPI KDMAPI_mmsystemGetVersion(void) {
 	return 0x0502U;
 }
 
-VOID WINAPI KDMAPI_PoweredByKeppy() {
+VOID WINAPI KDMAPI_poweredByKeppy() {
 	MessageBox(NULL, "Haha got u c:", "Windows Multimedia Wrapper", MB_OK | MB_ICONINFORMATION | MB_SYSTEMMODAL);
 }

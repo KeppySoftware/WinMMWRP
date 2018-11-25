@@ -11,7 +11,7 @@ EXPORTS
     PlaySound                        = c:\\windows\\system32\\winmm.PlaySound
     PlaySoundA                       = c:\\windows\\system32\\winmm.PlaySoundA
     PlaySoundW                       = c:\\windows\\system32\\winmm.PlaySoundW
-    PoweredByKeppy                   = KDMAPI_PoweredByKeppy
+    PoweredByKeppy                   = KDMAPI_poweredByKeppy
     SendDriverMessage                = c:\\windows\\system32\\winmm.SendDriverMessage
     aux32Message                     = c:\\windows\\system32\\winmm.aux32Message
     auxGetDevCapsA                   = c:\\windows\\system32\\winmm.auxGetDevCapsA
@@ -148,6 +148,7 @@ EXPORTS
     timeGetDevCaps                   = KDMAPI_timeGetDevCaps
     timeGetSystemTime                = KDMAPI_timeGetSystemTime
     timeGetTime                      = KDMAPI_timeGetTime
+	timeGetTime64                    = KDMAPI_timeGetTime64
     timeKillEvent                    = KDMAPI_timeKillEvent
     timeSetEvent                     = KDMAPI_timeSetEvent
     waveInAddBuffer                  = c:\\windows\\system32\\winmm.waveInAddBuffer

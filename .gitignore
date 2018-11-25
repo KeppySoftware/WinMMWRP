@@ -11,9 +11,11 @@
 
 // Rest
 /.vs/
+/ARM64/
 /x64/
 /DAW/
 /Release/
+/winmmwrp/ARM64/
 /winmmwrp/x64/
 /winmmwrp/DAW/
 /winmmwrp/Release/
