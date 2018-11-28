@@ -30,6 +30,9 @@
     <ClInclude Include="Res.h">
       <Filter>File di origine</Filter>
     </ClInclude>
+    <ClInclude Include="mmddk.h">
+      <Filter>File di origine</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="WinMMWrapper64.def">
