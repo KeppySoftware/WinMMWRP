@@ -26,7 +26,6 @@ static DWORD DrvMajor = 0, DrvMinor = 0, DrvBuild = 0, DrvRevision = 0;
 // OM funcs
 static LARGE_INTEGER frequency = { 0 };																	// QPC Frequency
 static HMODULE OM = NULL;																				// OM lib
-static BOOL IsCallbackWindow = FALSE;																	// WMMC
 static DWORD_PTR OMUser;																				// Dummy pointer, used for KDMAPI Output
 static HMIDI OMDummy = 0x10001;																			// Dummy pointer, used for KDMAPI Output
 static VOID(WINAPI*SCE)(DWORD, DWORD, DWORD) = 0;														// SendCustomEvent
@@ -374,8 +373,7 @@ MMRESULT WINAPI KDMAPI_midiOutOpen(LPHMIDIOUT lphmo, UINT uDeviceID, DWORD_PTR d
 		WMMC = (void*)dwCallback;
 		WMMCI = dwCallbackInstance;
 
-		IsCallbackWindow = (dwFlags == CALLBACK_WINDOW);
-		if (WMMC) WMMC((*lphmo), IsCallbackWindow ? MM_MOM_OPEN : MOM_OPEN, WMMCI, 0, 0);
+		if (WMMC) WMMC((*lphmo), MM_MOM_OPEN, WMMCI, 0, 0);
 	}
 
 	return MMSYSERR_NOERROR;
@@ -383,11 +381,11 @@ MMRESULT WINAPI KDMAPI_midiOutOpen(LPHMIDIOUT lphmo, UINT uDeviceID, DWORD_PTR d
 
 MMRESULT WINAPI KDMAPI_midiOutClose(HMIDIOUT hMidiOut) {
 #ifdef _DAWRELEASE
-	if (hMidiOut == OMDummy) return MMOutClose(hMidiOut);
+	if (hMidiOut != OMDummy) return MMOutClose(hMidiOut);
 #endif
 	// Close OM
 	if (!TOMS()) return MMSYSERR_INVALHANDLE;
-	if (WMMC) WMMC(hMidiOut, IsCallbackWindow ? MM_MOM_CLOSE : MOM_CLOSE, WMMCI, 0, 0);
+	if (WMMC) WMMC(hMidiOut, MM_MOM_OPEN, WMMCI, 0, 0);
 	hMidiOut = (HMIDI)0;
 	return MMSYSERR_NOERROR;
 }
@@ -427,7 +425,7 @@ MMRESULT WINAPI KDMAPI_midiOutLongMsg(HMIDIOUT hMidiOut, MIDIHDR* lpMidiOutHdr, 
 	MMRESULT Ret = SDLD(lpMidiOutHdr);
 
 	// Inform the app that the driver successfully received the long message (Required for vanBasco to work), and return the MMRESULT
-	if (WMMC) WMMC(hMidiOut, IsCallbackWindow ? MM_MOM_DONE : MOM_DONE, WMMCI, lpMidiOutHdr, lpMidiOutHdr->dwBufferLength);
+	if (WMMC) WMMC(hMidiOut, MM_MOM_DONE, WMMCI, lpMidiOutHdr, lpMidiOutHdr->dwBufferLength);
 
 	return Ret;
 }
@@ -552,7 +550,7 @@ MMRESULT WINAPI KDMAPI_midiStreamOpen(LPHMIDISTRM lphStream, LPUINT puDeviceID, 
 		return retval;
 	}
 	}
-#else
+#endif
 	*lphStream = OMDummy;
 
 	MIDIOUTCAPSW myCapsW = { 0 };
@@ -569,7 +567,6 @@ MMRESULT WINAPI KDMAPI_midiStreamOpen(LPHMIDISTRM lphStream, LPUINT puDeviceID, 
 
 	// Everything is oki-doki
 	return retval;
-#endif
 }
 
 MMRESULT WINAPI KDMAPI_midiStreamClose(HMIDISTRM hStream) {
@@ -618,7 +615,7 @@ MMRESULT WINAPI KDMAPI_midiStreamStop(HMIDISTRM hStream) {
 
 MMRESULT WINAPI KDMAPI_midiStreamProperty(HMIDISTRM hStream, LPBYTE lppropdata, DWORD dwProperty) {
 #ifdef _DAWRELEASE
-	if (hStream == OMDummy) return MMStreamProperty(hStream, lppropdata, dwProperty);
+	if (hStream != OMDummy) return MMStreamProperty(hStream, lppropdata, dwProperty);
 #endif
 	// Pass the prop. data to modMessage
 	return mM(0, MODM_PROPERTIES, OMUser, lppropdata, dwProperty);
