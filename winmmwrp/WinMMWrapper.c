@@ -16,9 +16,9 @@
 
 // Required KDMAPI version
 #define REQ_MAJOR	1
-#define REQ_MINOR	47
-#define REQ_BUILD	2
-#define REQ_REV		21
+#define REQ_MINOR	50
+#define REQ_BUILD	1
+#define REQ_REV		17
 
 // KDMAPI version from library
 static DWORD DrvMajor = 0, DrvMinor = 0, DrvBuild = 0, DrvRevision = 0;
@@ -28,6 +28,7 @@ static LARGE_INTEGER frequency = { 0 };																	// QPC Frequency
 static HMODULE OM = NULL;																				// OM lib
 static DWORD_PTR OMUser;																				// Dummy pointer, used for KDMAPI Output
 static HMIDI OMDummy = 0x10001;																			// Dummy pointer, used for KDMAPI Output
+static DWORD64(WINAPI*TGT64)() = 0;																		// timeGetTime64
 static VOID(WINAPI*SCE)(DWORD, DWORD, DWORD) = 0;														// SendCustomEvent
 static MMRESULT(WINAPI*SDD)(DWORD) = 0;																	// SendDirectData
 static MMRESULT(WINAPI*SDLD)(LPMIDIHDR) = 0;															// SendDirectLongData
@@ -149,6 +150,7 @@ void InitializeOMDirectAPI() {
 	}
 
 	SCE = (void*)GetProcAddress(OM, "SendCustomEvent");				// Send custom messages to KDMAPI
+	TGT64 = (void*)GetProcAddress(OM, "timeGetTime64");				// timeGetTime but 64-bit, from KDMAPI
 	SDD = (MMRESULT*)GetProcAddress(OM, "SendDirectData");			// Send short messages to KDMAPI
 	SDLD = (MMRESULT*)GetProcAddress(OM, "SendDirectLongData");		// Send long messages to KDMAPI
 	PLD = (MMRESULT*)GetProcAddress(OM, "PrepareLongData");			// Prepare long message with KDMAPI
@@ -160,13 +162,13 @@ void InitializeOMDirectAPI() {
 	ROMS = (void*)GetProcAddress(OM, "ResetKDMAPIStream");			// Reset the audio output and the MIDI channels
 	IKDMAPIA = (BOOL*)GetProcAddress(OM, "IsKDMAPIAvailable");		// Dummy, used to enable the KDMAPI flag in the debug window
 
-	if (!SDD || !SDLD || !IOMS ||
-		!TOMS || !ROMS || !IKDMAPIA ||
-		!mM) {
+	if (!SCE || !TGT64 || !SDD || !SDLD || !PLD || 
+		!UPLD || !mM || !RKDMAPIV || !IOMS || !TOMS || 
+		!ROMS || !IKDMAPIA || !mM) {
 		// One of the functions failed to load, exit
 		MessageBox(
 			NULL,
-			"Failed to initialize KDMAPI!\n\nThis patch only works with KDMAPI 1.30.0 or newer!\nIt won't work with other MIDI drivers!\n\nPress OK to quit.",
+			"Failed to initialize KDMAPI!\n\nThis patch only works with KDMAPI 1.50.1.7 or newer!\nIt won't work with other MIDI drivers!\n\nPress OK to quit.",
 			"Keppy's Direct MIDI API",
 			MB_ICONERROR | MB_OK | MB_SYSTEMMODAL
 		);
@@ -506,13 +508,11 @@ MMRESULT WINAPI KDMAPI_timeKillEvent(UINT uTimerID) {
 }
 
 DWORD64 WINAPI KDMAPI_timeGetTime64() {
-	LARGE_INTEGER startingTime;
-	QueryPerformanceCounter(&startingTime);
-	return (1000 * (startingTime.QuadPart % frequency.QuadPart) / frequency.QuadPart) + (1000 * (startingTime.QuadPart / frequency.QuadPart));
+	return TGT64();
 }
 
 DWORD WINAPI KDMAPI_timeGetTime() {
-	return (DWORD)KDMAPI_timeGetTime64();
+	return MMtimeGetTime();
 }
 
 MMRESULT WINAPI KDMAPI_timeGetSystemTime(LPMMTIME pmmt, UINT cbmmt) {
