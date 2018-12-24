@@ -41,11 +41,6 @@ static BOOL(WINAPI*TOMS)(VOID) = 0;																		// TerminateKDMAPIStream
 static VOID(WINAPI*ROMS)(VOID) = 0;																		// ResetKDMAPIStream
 static BOOL(WINAPI*IKDMAPIA)(VOID) = 0;																	// IsKDMAPIAvailable
 
-// NTDLL funcs
-static NTSTATUS(NTAPI*NtQuerySystemTime)(OUT PLARGE_INTEGER);
-static NTSTATUS(NTAPI*NtLockVirtualMemory)(IN HANDLE, IN OUT void**, IN OUT ULONG*, IN ULONG);
-static NTSTATUS(NTAPI*NtUnlockVirtualMemory)(IN HANDLE, IN OUT void**, IN OUT ULONG*, IN ULONG);
-
 // WinMM funcs, just replace MM with "midiOut" to get the real version
 static HMODULE OWINMM = NULL;
 #ifdef _DAWRELEASE
@@ -179,16 +174,6 @@ void InitializeOMDirectAPI() {
 	IKDMAPIA();					// Initialize the audio stream
 }
 
-void InitializeNTDLL() {
-	NtQuerySystemTime = (NTSTATUS*)GetProcAddress(GetModuleHandle("ntdll"), "NtQuerySystemTime");
-	NtLockVirtualMemory = (NTSTATUS*)GetProcAddress(GetModuleHandle("ntdll"), "NtLockVirtualMemory");
-	NtUnlockVirtualMemory = (NTSTATUS*)GetProcAddress(GetModuleHandle("ntdll"), "NtUnlockVirtualMemory");
-	if (!NtQuerySystemTime || !NtLockVirtualMemory || !NtUnlockVirtualMemory) {
-		MessageBox(NULL, "Failed to parse functions from NTDLL!\nPress OK to quit.", "OmniMIDI - FATAL ERROR", MB_OK | MB_ICONERROR | MB_SYSTEMMODAL);
-		exit(0x0A);
-	}
-}
-
 void InitializeWinMM() {
 	// Load WinMM
 	wchar_t SystemDirectory[MAX_PATH];
@@ -242,7 +227,6 @@ void InitializeWinMM() {
 
 BOOL WINAPI DllMain(HINSTANCE hInstDLL, DWORD fdwReason, LPVOID fImpLoad) {
 	if (fdwReason == DLL_PROCESS_ATTACH) {
-		InitializeNTDLL();
 		InitializeWinMM();
 		InitializeOMDirectAPI();
 
@@ -263,6 +247,8 @@ UINT WINAPI KDMAPI_midiOutGetNumDevs(void) {
 
 MMRESULT WINAPI KDMAPI_midiOutGetDevCapsW(UINT_PTR uDeviceID, LPMIDIOUTCAPSW lpCaps, UINT uSize) {
 	MIDIOUTCAPSW myCapsW;
+	MIDIOUTCAPSW myCapsWTMP;
+	UINT ret;
 
 	// Return the output device, but Unicode (UTF-8)
 	if (lpCaps == NULL) return MMSYSERR_INVALPARAM;
@@ -278,18 +264,25 @@ MMRESULT WINAPI KDMAPI_midiOutGetDevCapsW(UINT_PTR uDeviceID, LPMIDIOUTCAPSW lpC
 	default:
 		return MMOutGetDevCapsW(uDeviceID - 1, lpCaps, uSize);
 	}
-#endif
+#else
 	if (uDeviceID > 0) return MMSYSERR_BADDEVICEID;
+#endif
+	// Parse settings from OmniMIDI
+	ret = mM(0, MODM_GETDEVCAPS, OMUser, &myCapsWTMP, sizeof(MIDIOUTCAPSW));
 
 	// Assign values
-	myCapsW.wMid = 0xFFFF;
-	myCapsW.wPid = 0x000A;
+	myCapsW.wMid = myCapsWTMP.wMid;
+	myCapsW.wPid = myCapsWTMP.wPid;
+#ifdef _DAWRELEASE
 	wcsncpy(myCapsW.szPname, L"KDMAPI Output to OmniMIDI", MAXPNAMELEN);
-	myCapsW.wVoices = 0xFFFF;
-	myCapsW.wNotes = 0x0000;
-	myCapsW.wTechnology = MOD_MIDIPORT;
-	myCapsW.wChannelMask = 0xFFFF;
-	myCapsW.dwSupport = MIDICAPS_STREAM | MIDICAPS_VOLUME;
+#else
+	wcsncpy(myCapsW.szPname, myCapsWTMP.szPname, MAXPNAMELEN);
+#endif
+	myCapsW.wVoices = myCapsWTMP.wVoices;
+	myCapsW.wNotes = myCapsWTMP.wNotes;
+	myCapsW.wTechnology = myCapsWTMP.wTechnology;
+	myCapsW.wChannelMask = myCapsWTMP.wChannelMask;
+	myCapsW.dwSupport = myCapsWTMP.dwSupport;
 
 	// Copy values to pointer, and return 0
 	memcpy(lpCaps, &myCapsW, min(uSize, sizeof(myCapsW)));
@@ -363,9 +356,6 @@ MMRESULT WINAPI KDMAPI_midiOutOpen(LPHMIDIOUT lphmo, UINT uDeviceID, DWORD_PTR d
 	// Close any stream, just to be safe
 	if (!TOMS()) return MMSYSERR_INVALPARAM;
 
-	// Initialize MIDI out
-	if (!IOMS()) return MMSYSERR_ALLOCATED;
-
 	// Initialize a dummy out device
 	*lphmo = OMDummy;
 
@@ -377,6 +367,9 @@ MMRESULT WINAPI KDMAPI_midiOutOpen(LPHMIDIOUT lphmo, UINT uDeviceID, DWORD_PTR d
 
 		if (WMMC) WMMC((*lphmo), MM_MOM_OPEN, WMMCI, 0, 0);
 	}
+
+	// Initialize MIDI out
+	if (!IOMS(dwFlags & 0x00000002L, OMUser)) return MMSYSERR_ALLOCATED;
 
 	return MMSYSERR_NOERROR;
 }
@@ -437,7 +430,7 @@ MMRESULT WINAPI KDMAPI_midiOutCachePatches(HMIDIOUT hMidiOut, UINT wPatch, LPWOR
 	if (hMidiOut != OMDummy) return MMOutCachePatches(hMidiOut, wPatch, lpPatchArray, wFlags);
 #endif
 	// Dummy, not needed
-	return mM(0, MODM_CACHEPATCHES, OMUser, lpPatchArray, wFlags);
+	return MMSYSERR_NOERROR;
 }
 
 MMRESULT WINAPI KDMAPI_midiOutCacheDrumPatches(HMIDIOUT hMidiOut, UINT wPatch, LPWORD lpKeyArray, UINT wFlags) {
@@ -574,10 +567,9 @@ MMRESULT WINAPI KDMAPI_midiStreamClose(HMIDISTRM hStream) {
 	if (hStream != OMDummy) return MMStreamClose(hStream);
 #endif
 	// Terminate CookedPlayer, free up hStream and return 0
-	MMRESULT retval = mM(0, MODM_STOP, OMUser, 0, 0);
-	if (!retval) retval = mM(0, MODM_RESET, OMUser, 0, 0);
-	if (!retval) retval = mM(0, MODM_CLOSE, OMUser, 0, 0);
-	hStream = (HMIDI)0;
+	MMRESULT retval = mM(0, MODM_CLOSE, OMUser, 0, 0);
+	if (!retval)
+		hStream = (HMIDI)0;
 	return retval;
 }
 
