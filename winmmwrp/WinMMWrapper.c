@@ -359,6 +359,9 @@ MMRESULT WINAPI KDMAPI_midiOutOpen(LPHMIDIOUT lphmo, UINT uDeviceID, DWORD_PTR d
 	// Initialize a dummy out device
 	*lphmo = OMDummy;
 
+	// Initialize MIDI out
+	if (!IOMS()) return MMSYSERR_ALLOCATED;
+
 	// Setup the Callback (If there's one) - NEEDED FOR VANBASCO!
 	// If dwflags is CALLBACK_EVENT, then skip, since it's not needed. (Java pls)
 	if ((dwFlags != CALLBACK_NULL) && (dwFlags != CALLBACK_EVENT)) {
@@ -367,9 +370,6 @@ MMRESULT WINAPI KDMAPI_midiOutOpen(LPHMIDIOUT lphmo, UINT uDeviceID, DWORD_PTR d
 
 		if (WMMC) WMMC((*lphmo), MM_MOM_OPEN, WMMCI, 0, 0);
 	}
-
-	// Initialize MIDI out
-	if (!IOMS(dwFlags & 0x00000002L, OMUser)) return MMSYSERR_ALLOCATED;
 
 	return MMSYSERR_NOERROR;
 }
