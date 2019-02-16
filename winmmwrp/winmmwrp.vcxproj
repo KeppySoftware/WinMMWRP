@@ -349,6 +349,7 @@
     <ClInclude Include="mmddk.h" />
     <ClInclude Include="Res.h" />
     <ClInclude Include="resource.h" />
+    <ClInclude Include="WinMM.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="WinMMWrapper32.def" />
