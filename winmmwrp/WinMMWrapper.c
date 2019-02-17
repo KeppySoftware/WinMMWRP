@@ -2,7 +2,6 @@
 #include <stdio.h> 
 #include "mmddk.h"
 #include <time.h>
-#include "WinMM.h"
 
 #define KDMAPI_UDID			0		// KDMAPI default uDeviceID
 #define KDMAPI_NOTLOADED	0		// KDMAPI is not loaded
@@ -24,8 +23,7 @@
 // KDMAPI version from library
 static DWORD DrvMajor = 0, DrvMinor = 0, DrvBuild = 0, DrvRevision = 0;
 
-// OM funcs
-static LARGE_INTEGER frequency = { 0 };																	// QPC Frequency
+// OM funcs															// QPC Frequency
 static HMODULE OM = NULL;																				// OM lib
 static DWORD_PTR OMUser;																				// Dummy pointer, used for KDMAPI Output
 static HMIDI OMDummy = 0x10001;																			// Dummy pointer, used for KDMAPI Output
@@ -45,6 +43,9 @@ static BOOL(WINAPI*IKDMAPIA)(VOID) = 0;																	// IsKDMAPIAvailable
 // Callback, used for old apps that require one
 static DWORD_PTR WMMCI;
 static VOID(CALLBACK*WMMC)(HMIDIOUT, DWORD, DWORD_PTR, DWORD_PTR, DWORD_PTR) = 0;
+
+// Stock WinMM funcs
+#include "WinMM.h"
 
 void CheckIfKDMAPIIsUpToDate() {
 	BOOL GoAhead = FALSE;
@@ -87,7 +88,7 @@ void CheckIfKDMAPIIsUpToDate() {
 	}
 }
 
-void InitializeOMDirectAPI() {
+BOOL InitializeOMDirectAPI() {
 	wchar_t SystemDirectory[MAX_PATH];
 	GetSystemDirectoryW(SystemDirectory, MAX_PATH);
 	wcscat(SystemDirectory, L"\\OmniMIDI\\OmniMIDI.dll");
@@ -102,10 +103,11 @@ void InitializeOMDirectAPI() {
 			MessageBox(
 				NULL,
 				"Failed to initialize OmniMIDI!\n\nThis patch will not work with other MIDI drivers.\n\nPress OK to exit.",
-				"Keppy's Direct MIDI API",
+				"KDMAPI ERROR",
 				MB_ICONERROR | MB_OK | MB_SYSTEMMODAL
 			);
-			exit(-1);
+
+			return FALSE;
 		}
 	}
 
@@ -128,29 +130,28 @@ void InitializeOMDirectAPI() {
 		// One of the functions failed to load, exit
 		MessageBox(
 			NULL,
-			"Failed to initialize KDMAPI!\n\nThis patch only works with KDMAPI 1.50.1.7 or newer!\nIt won't work with other MIDI drivers!\n\nPress OK to quit.",
-			"Keppy's Direct MIDI API",
+			"Failed to initialize KDMAPI!\n\nPress OK to quit.",
+			"KDMAPI ERROR",
 			MB_ICONERROR | MB_OK | MB_SYSTEMMODAL
 		);
-		exit(0x57);
+
+		return FALSE;
 	}
 
 	CheckIfKDMAPIIsUpToDate();	// Check if it's up to date before initializing
-	IKDMAPIA();					// Initialize the audio stream
+	IKDMAPIA();
+
+	return TRUE;
 }
 
-BOOL WINAPI DllMain(HINSTANCE hInstDLL, DWORD fdwReason, LPVOID fImpLoad) {
+BOOL DllMain(HINSTANCE hInstDLL, DWORD fdwReason, LPVOID fImpLoad) {
 	if (fdwReason == DLL_PROCESS_ATTACH) {
-		InitializeWinMM();
-		InitializeOMDirectAPI();
-
-		if (frequency.QuadPart == 0)
-			QueryPerformanceFrequency(&frequency);
+		if (!InitializeWinMM() || !InitializeOMDirectAPI()) return FALSE;
 	}
 	return TRUE;
 }
 
-UINT WINAPI KDMAPI_midiOutGetNumDevs(void) {
+UINT KDMAPI_midiOutGetNumDevs(void) {
 #ifdef _DAWRELEASE
 	// Return the first port which is KDMAPI, plus the others
 	return MMmidiOutGetNumDevs() + 1;
@@ -159,7 +160,7 @@ UINT WINAPI KDMAPI_midiOutGetNumDevs(void) {
 #endif
 }
 
-MMRESULT WINAPI KDMAPI_midiOutGetDevCapsW(UINT_PTR uDeviceID, LPMIDIOUTCAPSW lpCaps, UINT uSize) {
+MMRESULT KDMAPI_midiOutGetDevCapsW(UINT_PTR uDeviceID, LPMIDIOUTCAPSW lpCaps, UINT uSize) {
 	MIDIOUTCAPSW myCapsW;
 	MIDIOUTCAPSW myCapsWTMP;
 	UINT ret;
@@ -204,7 +205,7 @@ MMRESULT WINAPI KDMAPI_midiOutGetDevCapsW(UINT_PTR uDeviceID, LPMIDIOUTCAPSW lpC
 	return MMSYSERR_NOERROR;
 }
 
-MMRESULT WINAPI KDMAPI_midiOutGetDevCapsA(UINT_PTR uDeviceID, LPMIDIOUTCAPSA lpCaps, UINT uSize) {
+MMRESULT KDMAPI_midiOutGetDevCapsA(UINT_PTR uDeviceID, LPMIDIOUTCAPSA lpCaps, UINT uSize) {
 	// Return the output device, but ASCII/Multibyte
 	if (lpCaps == NULL) return MMSYSERR_INVALPARAM;
 
@@ -235,7 +236,7 @@ MMRESULT WINAPI KDMAPI_midiOutGetDevCapsA(UINT_PTR uDeviceID, LPMIDIOUTCAPSA lpC
 	return ret;
 }
 
-MMRESULT WINAPI KDMAPI_midiOutShortMsg(HMIDIOUT hMidiOut, DWORD dwMsg) {
+MMRESULT KDMAPI_midiOutShortMsg(HMIDIOUT hMidiOut, DWORD dwMsg) {
 #ifdef _DAWRELEASE
 	// If not OM, forward to WinMM
 	if (hMidiOut != OMDummy) return MMmidiOutShortMsg(hMidiOut, dwMsg);
@@ -243,7 +244,7 @@ MMRESULT WINAPI KDMAPI_midiOutShortMsg(HMIDIOUT hMidiOut, DWORD dwMsg) {
 	return SDD(dwMsg);
 }
 
-MMRESULT WINAPI KDMAPI_midiOutOpen(LPHMIDIOUT lphmo, UINT uDeviceID, DWORD_PTR dwCallback, DWORD_PTR dwCallbackInstance, DWORD dwFlags) {
+MMRESULT KDMAPI_midiOutOpen(LPHMIDIOUT lphmo, UINT uDeviceID, DWORD_PTR dwCallback, DWORD_PTR dwCallbackInstance, DWORD dwFlags) {
 #ifdef _DAWRELEASE
 	// If above this device ID, return an error
 	if (uDeviceID > 0xFFFFFFFE) return MMSYSERR_BADDEVICEID;
@@ -288,7 +289,7 @@ MMRESULT WINAPI KDMAPI_midiOutOpen(LPHMIDIOUT lphmo, UINT uDeviceID, DWORD_PTR d
 	return MMSYSERR_NOERROR;
 }
 
-MMRESULT WINAPI KDMAPI_midiOutClose(HMIDIOUT hMidiOut) {
+MMRESULT KDMAPI_midiOutClose(HMIDIOUT hMidiOut) {
 #ifdef _DAWRELEASE
 	if (hMidiOut != OMDummy) return MMmidiOutClose(hMidiOut);
 #endif
@@ -299,7 +300,7 @@ MMRESULT WINAPI KDMAPI_midiOutClose(HMIDIOUT hMidiOut) {
 	return MMSYSERR_NOERROR;
 }
 
-MMRESULT WINAPI KDMAPI_midiOutReset(HMIDIOUT hMidiOut) {
+MMRESULT KDMAPI_midiOutReset(HMIDIOUT hMidiOut) {
 #ifdef _DAWRELEASE
 	if (hMidiOut != OMDummy) return MMmidiOutReset(hMidiOut);
 #endif
@@ -308,21 +309,21 @@ MMRESULT WINAPI KDMAPI_midiOutReset(HMIDIOUT hMidiOut) {
 	return MMSYSERR_NOERROR;
 }
 
-MMRESULT WINAPI KDMAPI_midiOutPrepareHeader(HMIDIOUT hMidiOut, MIDIHDR* lpMidiOutHdr, UINT uSize) {
+MMRESULT KDMAPI_midiOutPrepareHeader(HMIDIOUT hMidiOut, MIDIHDR* lpMidiOutHdr, UINT uSize) {
 #ifdef _DAWRELEASE
 	if (hMidiOut != OMDummy) return MMmidiOutPrepareHeader(hMidiOut, lpMidiOutHdr, uSize);
 #endif
 	return PLD(lpMidiOutHdr);
 }
 
-MMRESULT WINAPI KDMAPI_midiOutUnprepareHeader(HMIDIOUT hMidiOut, MIDIHDR* lpMidiOutHdr, UINT uSize) {
+MMRESULT KDMAPI_midiOutUnprepareHeader(HMIDIOUT hMidiOut, MIDIHDR* lpMidiOutHdr, UINT uSize) {
 #ifdef _DAWRELEASE
 	if (hMidiOut != OMDummy) return MMmidiOutUnprepareHeader(hMidiOut, lpMidiOutHdr, uSize);
 #endif
 	return UPLD(lpMidiOutHdr);
 }
 
-MMRESULT WINAPI KDMAPI_midiOutLongMsg(HMIDIOUT hMidiOut, MIDIHDR* lpMidiOutHdr, UINT uSize) {
+MMRESULT KDMAPI_midiOutLongMsg(HMIDIOUT hMidiOut, MIDIHDR* lpMidiOutHdr, UINT uSize) {
 #ifdef _DAWRELEASE
 	if (hMidiOut != OMDummy) return MMmidiOutLongMsg(hMidiOut, lpMidiOutHdr, uSize);
 #endif
@@ -339,7 +340,7 @@ MMRESULT WINAPI KDMAPI_midiOutLongMsg(HMIDIOUT hMidiOut, MIDIHDR* lpMidiOutHdr, 
 	return Ret;
 }
 
-MMRESULT WINAPI KDMAPI_midiOutCachePatches(HMIDIOUT hMidiOut, UINT wPatch, LPWORD lpPatchArray, UINT wFlags) {
+MMRESULT KDMAPI_midiOutCachePatches(HMIDIOUT hMidiOut, UINT wPatch, LPWORD lpPatchArray, UINT wFlags) {
 #ifdef _DAWRELEASE
 	if (hMidiOut != OMDummy) return MMmidiOutCachePatches(hMidiOut, wPatch, lpPatchArray, wFlags);
 #endif
@@ -347,7 +348,7 @@ MMRESULT WINAPI KDMAPI_midiOutCachePatches(HMIDIOUT hMidiOut, UINT wPatch, LPWOR
 	return MMSYSERR_NOERROR;
 }
 
-MMRESULT WINAPI KDMAPI_midiOutCacheDrumPatches(HMIDIOUT hMidiOut, UINT wPatch, LPWORD lpKeyArray, UINT wFlags) {
+MMRESULT KDMAPI_midiOutCacheDrumPatches(HMIDIOUT hMidiOut, UINT wPatch, LPWORD lpKeyArray, UINT wFlags) {
 #ifdef _DAWRELEASE
 	if (hMidiOut != OMDummy) return MMmidiOutCacheDrumPatches(hMidiOut, wPatch, lpKeyArray, wFlags);
 #endif
@@ -355,7 +356,7 @@ MMRESULT WINAPI KDMAPI_midiOutCacheDrumPatches(HMIDIOUT hMidiOut, UINT wPatch, L
 	return MMSYSERR_NOERROR;
 }
 
-MMRESULT WINAPI KDMAPI_midiOutMessage(HMIDIOUT hMidiOut, UINT uMsg, DWORD_PTR dw1, DWORD_PTR dw2) {
+MMRESULT KDMAPI_midiOutMessage(HMIDIOUT hMidiOut, UINT uMsg, DWORD_PTR dw1, DWORD_PTR dw2) {
 #ifdef _DAWRELEASE
 	if (hMidiOut != OMDummy) return MMmidiOutMessage(hMidiOut, uMsg, dw1, dw2);
 #endif
@@ -363,7 +364,7 @@ MMRESULT WINAPI KDMAPI_midiOutMessage(HMIDIOUT hMidiOut, UINT uMsg, DWORD_PTR dw
 	return MMSYSERR_NOERROR;
 }
 
-MMRESULT WINAPI KDMAPI_midiOutSetVolume(HMIDIOUT hMidiOut, DWORD dwVolume) {
+MMRESULT KDMAPI_midiOutSetVolume(HMIDIOUT hMidiOut, DWORD dwVolume) {
 #ifdef _DAWRELEASE
 	if (hMidiOut != OMDummy) return MMmidiOutSetVolume(hMidiOut, dwVolume);
 #endif
@@ -371,7 +372,7 @@ MMRESULT WINAPI KDMAPI_midiOutSetVolume(HMIDIOUT hMidiOut, DWORD dwVolume) {
 	return mM(0, MODM_SETVOLUME, OMUser, dwVolume, 0);
 }
 
-MMRESULT WINAPI KDMAPI_midiOutGetVolume(HMIDIOUT hMidiOut, LPDWORD lpdwVolume) {
+MMRESULT KDMAPI_midiOutGetVolume(HMIDIOUT hMidiOut, LPDWORD lpdwVolume) {
 #ifdef _DAWRELEASE
 	if (hMidiOut != OMDummy) return MMmidiOutGetVolume(hMidiOut, lpdwVolume);
 #endif
@@ -379,7 +380,7 @@ MMRESULT WINAPI KDMAPI_midiOutGetVolume(HMIDIOUT hMidiOut, LPDWORD lpdwVolume) {
 	return mM(0, MODM_GETVOLUME, OMUser, lpdwVolume, 0);
 }
 
-MMRESULT WINAPI KDMAPI_midiOutGetID(HMIDIOUT hMidiOut, LPUINT puDeviceID) {
+MMRESULT KDMAPI_midiOutGetID(HMIDIOUT hMidiOut, LPUINT puDeviceID) {
 #ifdef _DAWRELEASE
 	if (hMidiOut != OMDummy) {
 		UINT Dummy = 0;
@@ -402,44 +403,16 @@ MMRESULT WINAPI KDMAPI_midiOutGetID(HMIDIOUT hMidiOut, LPUINT puDeviceID) {
 	return MMSYSERR_NOERROR;
 }
 
-MMRESULT WINAPI KDMAPI_timeGetDevCaps(LPTIMECAPS ptc, UINT cbtc) {
-	return MMtimeGetDevCaps(ptc, &cbtc);
-}
-
-MMRESULT WINAPI KDMAPI_timeSetEvent(UINT uDelay, UINT uResolution, LPTIMECALLBACK lpTimeProc, DWORD_PTR dwUser, UINT fuEvent) {
-	return MMtimeSetEvent(uDelay, uResolution, lpTimeProc, dwUser, fuEvent);
-}
-
-MMRESULT WINAPI KDMAPI_timeKillEvent(UINT uTimerID) {
-	return MMtimeKillEvent(uTimerID);
-}
-
-DWORD64 WINAPI KDMAPI_timeGetTime64() {
+DWORD64 KDMAPI_timeGetTime64() {
 	return TGT64();
 }
 
-DWORD WINAPI KDMAPI_timeGetTime() {
-	return MMtimeGetTime();
-}
-
-MMRESULT WINAPI KDMAPI_timeGetSystemTime(LPMMTIME pmmt, UINT cbmmt) {
-	return MMtimeGetSystemTime(pmmt, &cbmmt);
-}
-
-MMRESULT WINAPI KDMAPI_timeBeginPeriod(UINT uPeriod) {
-	return TIMERR_NOERROR;
-}
-
-MMRESULT WINAPI KDMAPI_timeEndPeriod(UINT uPeriod) {
-	return TIMERR_NOERROR;
-}
-
-UINT WINAPI KDMAPI_mmsystemGetVersion(void) {
+UINT KDMAPI_mmsystemGetVersion(void) {
 	// Dummy, not needed
 	return 0x0502U;
 }
 
-MMRESULT WINAPI KDMAPI_midiStreamOpen(LPHMIDISTRM lphStream, LPUINT puDeviceID, DWORD cMidi, DWORD_PTR dwCallback, DWORD_PTR dwCallbackInstance, DWORD fdwOpen) {
+MMRESULT KDMAPI_midiStreamOpen(LPHMIDISTRM lphStream, LPUINT puDeviceID, DWORD cMidi, DWORD_PTR dwCallback, DWORD_PTR dwCallbackInstance, DWORD fdwOpen) {
 	MMRESULT retval = MMSYSERR_NOERROR;
 
 	if (cMidi != 1 || lphStream == NULL || puDeviceID == NULL) return MMSYSERR_INVALPARAM;
@@ -476,7 +449,7 @@ MMRESULT WINAPI KDMAPI_midiStreamOpen(LPHMIDISTRM lphStream, LPUINT puDeviceID, 
 	return retval;
 }
 
-MMRESULT WINAPI KDMAPI_midiStreamClose(HMIDISTRM hStream) {
+MMRESULT KDMAPI_midiStreamClose(HMIDISTRM hStream) {
 #ifdef _DAWRELEASE
 	if (hStream != OMDummy) return MMmidiStreamClose(hStream);
 #endif
@@ -487,7 +460,7 @@ MMRESULT WINAPI KDMAPI_midiStreamClose(HMIDISTRM hStream) {
 	return retval;
 }
 
-MMRESULT WINAPI KDMAPI_midiStreamOut(HMIDISTRM hStream, LPMIDIHDR lpMidiOutHdr, UINT uSize) {
+MMRESULT KDMAPI_midiStreamOut(HMIDISTRM hStream, LPMIDIHDR lpMidiOutHdr, UINT uSize) {
 #ifdef _DAWRELEASE
 	if (hStream != OMDummy) return MMmidiStreamOut(hStream, lpMidiOutHdr, uSize);
 #endif
@@ -495,7 +468,7 @@ MMRESULT WINAPI KDMAPI_midiStreamOut(HMIDISTRM hStream, LPMIDIHDR lpMidiOutHdr, 
 	return mM(0, MODM_STRMDATA, OMUser, lpMidiOutHdr, uSize);
 }
 
-MMRESULT WINAPI KDMAPI_midiStreamPause(HMIDISTRM hStream) {
+MMRESULT KDMAPI_midiStreamPause(HMIDISTRM hStream) {
 #ifdef _DAWRELEASE
 	if (hStream != OMDummy) return MMmidiStreamPause(hStream);
 #endif
@@ -503,7 +476,7 @@ MMRESULT WINAPI KDMAPI_midiStreamPause(HMIDISTRM hStream) {
 	return mM(0, MODM_PAUSE, OMUser, 0, 0);
 }
 
-MMRESULT WINAPI KDMAPI_midiStreamRestart(HMIDISTRM hStream) {
+MMRESULT KDMAPI_midiStreamRestart(HMIDISTRM hStream) {
 #ifdef _DAWRELEASE
 	if (hStream != OMDummy) return MMmidiStreamRestart(hStream);
 #endif
@@ -511,7 +484,7 @@ MMRESULT WINAPI KDMAPI_midiStreamRestart(HMIDISTRM hStream) {
 	return mM(0, MODM_RESTART, OMUser, 0, 0);
 }
 
-MMRESULT WINAPI KDMAPI_midiStreamStop(HMIDISTRM hStream) {
+MMRESULT KDMAPI_midiStreamStop(HMIDISTRM hStream) {
 #ifdef _DAWRELEASE
 	if (hStream != OMDummy) return MMmidiStreamStop(hStream);
 #endif
@@ -519,7 +492,7 @@ MMRESULT WINAPI KDMAPI_midiStreamStop(HMIDISTRM hStream) {
 	return mM(0, MODM_STOP, OMUser, 0, 0);
 }
 
-MMRESULT WINAPI KDMAPI_midiStreamProperty(HMIDISTRM hStream, LPBYTE lppropdata, DWORD dwProperty) {
+MMRESULT KDMAPI_midiStreamProperty(HMIDISTRM hStream, LPBYTE lppropdata, DWORD dwProperty) {
 #ifdef _DAWRELEASE
 	if (hStream != OMDummy) return MMmidiStreamProperty(hStream, lppropdata, dwProperty);
 #endif
@@ -527,7 +500,7 @@ MMRESULT WINAPI KDMAPI_midiStreamProperty(HMIDISTRM hStream, LPBYTE lppropdata, 
 	return mM(0, MODM_PROPERTIES, OMUser, lppropdata, dwProperty);
 }
 
-MMRESULT WINAPI KDMAPI_midiStreamPosition(HMIDISTRM hStream, LPMMTIME pmmt, UINT cbmmt) {
+MMRESULT KDMAPI_midiStreamPosition(HMIDISTRM hStream, LPMMTIME pmmt, UINT cbmmt) {
 #ifdef _DAWRELEASE
 	if (hStream != OMDummy) return MMmidiStreamPosition(hStream, pmmt, cbmmt);
 #endif
@@ -535,6 +508,6 @@ MMRESULT WINAPI KDMAPI_midiStreamPosition(HMIDISTRM hStream, LPMMTIME pmmt, UINT
 	return mM(0, MODM_GETPOS, OMUser, pmmt, cbmmt);
 }
 
-VOID WINAPI KDMAPI_poweredByKeppy() {
+VOID KDMAPI_poweredByKeppy() {
 	MessageBox(NULL, "Haha got u c:", "Windows Multimedia Wrapper", MB_OK | MB_ICONINFORMATION | MB_SYSTEMMODAL);
 }
