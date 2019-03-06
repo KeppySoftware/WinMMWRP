@@ -47,7 +47,7 @@ static VOID(CALLBACK*WMMC)(HMIDIOUT, DWORD, DWORD_PTR, DWORD_PTR, DWORD_PTR) = 0
 // Stock WinMM funcs
 #include "WinMM.h"
 
-void CheckIfKDMAPIIsUpToDate() {
+BOOL CheckIfKDMAPIIsUpToDate() {
 	BOOL GoAhead = FALSE;
 	RKDMAPIV(&DrvMajor, &DrvMinor, &DrvBuild, &DrvRevision);
 
@@ -80,12 +80,14 @@ void CheckIfKDMAPIIsUpToDate() {
 		MessageBox(
 			NULL,
 			ErrorBuf,
-			"Windows Multimedia Wrapper",
+			"KDMAPI ERROR",
 			MB_ICONERROR | MB_OK | MB_SYSTEMMODAL
 		);
 
-		exit(0x0A);
+		return FALSE;
 	}
+
+	return TRUE;
 }
 
 BOOL InitializeOMDirectAPI() {
@@ -94,7 +96,7 @@ BOOL InitializeOMDirectAPI() {
 	wcscat(SystemDirectory, L"\\OmniMIDI\\OmniMIDI.dll");
 
 	// Load the default DLL from the app's directory
-	OM = LoadLibraryW("OmniMIDI.dll");
+	OM = LoadLibraryW(L"OmniMIDI.dll");
 	if (!OM) {
 		// Failed, try loading it from the system directory
 		OM = LoadLibraryW(SystemDirectory);
@@ -102,7 +104,7 @@ BOOL InitializeOMDirectAPI() {
 			// Failed, OmniMIDI is not available, exit the program
 			MessageBox(
 				NULL,
-				"Failed to initialize OmniMIDI!\n\nThis patch will not work with other MIDI drivers.\n\nPress OK to exit.",
+				"LoadLibraryW failed. Can not load OmniMIDI to memory!\nThe wrapper requires OmniMIDI to be installed, or its runtime to be extracted in the same directory as the wrapper itself.\n\nPress OK close this app.",
 				"KDMAPI ERROR",
 				MB_ICONERROR | MB_OK | MB_SYSTEMMODAL
 			);
@@ -126,7 +128,7 @@ BOOL InitializeOMDirectAPI() {
 
 	if (!SCE || !TGT64 || !SDD || !SDLD || !PLD ||
 		!UPLD || !mM || !RKDMAPIV || !IOMS || !TOMS ||
-		!ROMS || !IKDMAPIA || !mM) {
+		!ROMS || !IKDMAPIA) {
 		// One of the functions failed to load, exit
 		MessageBox(
 			NULL,
@@ -138,10 +140,10 @@ BOOL InitializeOMDirectAPI() {
 		return FALSE;
 	}
 
-	CheckIfKDMAPIIsUpToDate();	// Check if it's up to date before initializing
-	IKDMAPIA();
+	BOOL Valid = CheckIfKDMAPIIsUpToDate();
+	if (Valid) IKDMAPIA();
 
-	return TRUE;
+	return Valid;
 }
 
 BOOL DllMain(HINSTANCE hInstDLL, DWORD fdwReason, LPVOID fImpLoad) {
@@ -189,7 +191,7 @@ MMRESULT WINAPI KDMAPI_midiOutGetDevCapsW(UINT_PTR uDeviceID, LPMIDIOUTCAPSW lpC
 	myCapsW.wMid = myCapsWTMP.wMid;
 	myCapsW.wPid = myCapsWTMP.wPid;
 #ifdef _DAWRELEASE
-	wcsncpy(myCapsW.szPname, L"KDMAPI Output to OmniMIDI", MAXPNAMELEN);
+	wcsncpy(myCapsW.szPname, L"Keppy's Direct MIDI API", MAXPNAMELEN);
 #else
 	wcsncpy(myCapsW.szPname, myCapsWTMP.szPname, MAXPNAMELEN);
 #endif
@@ -269,13 +271,14 @@ MMRESULT WINAPI KDMAPI_midiOutOpen(LPHMIDIOUT lphmo, UINT uDeviceID, DWORD_PTR d
 	}
 #endif
 	// Close any stream, just to be safe
-	if (!TOMS()) return MMSYSERR_INVALPARAM;
+	TOMS();
 
 	// Initialize a dummy out device
 	*lphmo = OMDummy;
 
 	// Initialize MIDI out
-	if (!IOMS()) return MMSYSERR_ALLOCATED;
+	if (!IOMS())
+		return MMSYSERR_ALLOCATED;
 
 	// Setup the Callback (If there's one) - NEEDED FOR VANBASCO!
 	// If dwflags is CALLBACK_EVENT, then skip, since it's not needed. (Java pls)
@@ -294,7 +297,7 @@ MMRESULT WINAPI KDMAPI_midiOutClose(HMIDIOUT hMidiOut) {
 	if (hMidiOut != OMDummy) return MMmidiOutClose(hMidiOut);
 #endif
 	// Close OM
-	if (!TOMS()) return MMSYSERR_INVALHANDLE;
+	if (!TOMS()) return MMSYSERR_NOMEM;
 	if (WMMC) WMMC(hMidiOut, MM_MOM_OPEN, WMMCI, 0, 0);
 	hMidiOut = (HMIDI)0;
 	return MMSYSERR_NOERROR;
@@ -327,10 +330,6 @@ MMRESULT WINAPI KDMAPI_midiOutLongMsg(HMIDIOUT hMidiOut, MIDIHDR* lpMidiOutHdr, 
 #ifdef _DAWRELEASE
 	if (hMidiOut != OMDummy) return MMmidiOutLongMsg(hMidiOut, lpMidiOutHdr, uSize);
 #endif
-	if (!lpMidiOutHdr) return MMSYSERR_INVALPARAM;								// The buffer doesn't exist, invalid parameter
-	if (!(lpMidiOutHdr->dwFlags & MHDR_PREPARED)) return MIDIERR_UNPREPARED;	// The buffer is not prepared
-	if (lpMidiOutHdr->dwFlags & MHDR_INQUEUE) return MIDIERR_NOTREADY;			// Another buffer is being played at the moment, the driver is not ready
-
 	// Forward the buffer to KDMAPI
 	MMRESULT Ret = SDLD(lpMidiOutHdr);
 
@@ -344,7 +343,7 @@ MMRESULT WINAPI KDMAPI_midiOutCachePatches(HMIDIOUT hMidiOut, UINT wPatch, LPWOR
 #ifdef _DAWRELEASE
 	if (hMidiOut != OMDummy) return MMmidiOutCachePatches(hMidiOut, wPatch, lpPatchArray, wFlags);
 #endif
-	// Dummy, not needed
+	// Dummy, OmniMIDI uses SoundFonts
 	return MMSYSERR_NOERROR;
 }
 
@@ -444,6 +443,7 @@ MMRESULT WINAPI KDMAPI_midiStreamOpen(LPHMIDISTRM lphStream, LPUINT puDeviceID, 
 
 	// Call modMessage
 	retval = mM(0, MODM_OPEN, &OMUser, &OpenDesc, fdwOpen | 0x00000002L);
+	IKDMAPIA();
 
 	// Everything is oki-doki
 	return retval;
@@ -509,5 +509,5 @@ MMRESULT WINAPI KDMAPI_midiStreamPosition(HMIDISTRM hStream, LPMMTIME pmmt, UINT
 }
 
 VOID WINAPI KDMAPI_poweredByKeppy() {
-	MessageBox(NULL, "Haha got u c:", "Windows Multimedia Wrapper", MB_OK | MB_ICONINFORMATION | MB_SYSTEMMODAL);
+	MessageBox(NULL, "With love by Keppy.", "Windows Multimedia Wrapper", MB_OK | MB_ICONINFORMATION | MB_SYSTEMMODAL);
 }

@@ -424,8 +424,8 @@ BOOL InitializeWinMM() {
 	if (!OWINMM) {
 		MessageBox(
 			NULL,
-			"Failed to initialize the Windows Multimedia API!\nThe interpreter won't work if Windows Multimedia isn't present.\n\nPress OK to exit.",
-			"Keppy's Direct MIDI API",
+			"An error has occured during the initialization of the Windows Multimedia Extensions API!\n\nPress OK to exit.",
+			"KDMAPI ERROR",
 			MB_ICONERROR | MB_OK | MB_SYSTEMMODAL
 		);
 
@@ -433,12 +433,24 @@ BOOL InitializeWinMM() {
 	}
 
 	// LOAD EVERYTHING!
+	TCHAR ErrorBuf[1024];
 	for (int i = 0; i < sizeof(MMImports) / sizeof(MMImports[0]); i++)
 	{
 		*(MMImports[i].ptr) = (void*)GetProcAddress(OWINMM, MMImports[i].name);
 
 		if (!*(MMImports[i].ptr)) {
-			MessageBoxA(NULL, MMImports[i].name, "KDMAPI ERROR", MB_ICONERROR | MB_SYSTEMMODAL);
+			sprintf_s(
+				ErrorBuf,
+				1024,
+				"An error has occured while loading \"%s\" from WinMM.\n\nFailed to load the Windows Multimedia Extensions API, press OK to exit.",
+				MMImports[i].name);
+
+			MessageBox(
+				NULL,
+				ErrorBuf,
+				"KDMAPI ERROR",
+				MB_ICONERROR | MB_OK | MB_SYSTEMMODAL
+			);
 			return FALSE;
 		}
 	}
