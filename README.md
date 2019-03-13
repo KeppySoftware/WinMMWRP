@@ -31,4 +31,4 @@ Long story short, it was a success. Everything works like it should, and people 
 - None, as far as I know.
 
 # License
-See [LICENSE](LICENSE.md).
+See [LICENSE](LICENSE).
