@@ -1,7 +1,7 @@
 LIBRARY	winmm.dll
 
 EXPORTS
-	timeGetTime						= KDMAPI_timeGetTime	@1
+	timeGetTime						= KDMAPI_timeGetTime
 	CloseDriver						= WINMM_CloseDriver
 	DefDriverProc					= WINMM_DefDriverProc
 	DriverCallback					= WINMM_DriverCallback
@@ -76,17 +76,17 @@ EXPORTS
 	midiOutGetID					= KDMAPI_midiOutGetID
 	midiOutGetNumDevs				= KDMAPI_midiOutGetNumDevs
 	midiOutGetVolume				= KDMAPI_midiOutGetVolume
-	midiOutLongMsg					= KDMAPI_midiOutLongMsg	@3
+	midiOutLongMsg					= KDMAPI_midiOutLongMsg
 	midiOutMessage					= KDMAPI_midiOutMessage
 	midiOutOpen						= KDMAPI_midiOutOpen
 	midiOutPrepareHeader			= KDMAPI_midiOutPrepareHeader
 	midiOutReset					= KDMAPI_midiOutReset
 	midiOutSetVolume				= KDMAPI_midiOutSetVolume
-	midiOutShortMsg					= KDMAPI_midiOutShortMsg	@2
+	midiOutShortMsg					= KDMAPI_midiOutShortMsg
 	midiOutUnprepareHeader			= KDMAPI_midiOutUnprepareHeader
 	midiStreamClose					= KDMAPI_midiStreamClose
 	midiStreamOpen					= KDMAPI_midiStreamOpen
-	midiStreamOut					= KDMAPI_midiStreamOut	@5
+	midiStreamOut					= KDMAPI_midiStreamOut
 	midiStreamPause					= KDMAPI_midiStreamPause
 	midiStreamPosition				= KDMAPI_midiStreamPosition
 	midiStreamProperty				= KDMAPI_midiStreamProperty
@@ -126,7 +126,7 @@ EXPORTS
 	mmioRenameA						= WINMM_mmioRenameA
 	mmioRenameW						= WINMM_mmioRenameW
 	mmioSeek						= WINMM_mmioSeek
-	mmioSendMessage					= WINMM_mmioSendMessage	@6
+	mmioSendMessage					= WINMM_mmioSendMessage
 	mmioSetBuffer					= WINMM_mmioSetBuffer
 	mmioSetInfo						= WINMM_mmioSetInfo
 	mmioStringToFOURCCA				= WINMM_mmioStringToFOURCCA
@@ -180,4 +180,4 @@ EXPORTS
 	waveOutSetPlaybackRate			= WINMM_waveOutSetPlaybackRate
 	waveOutSetVolume				= WINMM_waveOutSetVolume
 	waveOutUnprepareHeader			= WINMM_waveOutUnprepareHeader
-	waveOutWrite					= WINMM_waveOutWrite	@4
+	waveOutWrite					= WINMM_waveOutWrite

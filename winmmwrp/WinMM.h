@@ -414,6 +414,10 @@ DWORD WINAPI INTERNAL_timeGetTime() {
 	return (DWORD)TGT64();
 }
 
+DWORD WINAPI KDMAPI_timeGetTime() {
+	return INtimeGetTime();
+}
+
 BOOL InitializeWinMM() {
 	// Load WinMM
 	wchar_t SystemDirectory[MAX_PATH];
@@ -471,10 +475,6 @@ BOOL InitializeWinMM() {
 }
 
 // Functions start -> HERE <-
-
-DWORD KDMAPI_timeGetTime() {
-	return INtimeGetTime();
-}
 
 HDRVR WINAPI WINMM_OpenDriver(_In_ LPCWSTR lpDN, _In_ LPCWSTR lpSN, _In_ LPARAM lp) {
 	return MMOpenDriver(lpDN, lpSN, lp);
