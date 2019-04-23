@@ -126,19 +126,19 @@ BOOL InitializeOMDirectAPI() {
 		}
 	}
 
-	SCE = (void*)GetProcAddress(OM, "SendCustomEvent");								// Send custom messages to KDMAPI
-	TGT64 = (void*)GetProcAddress(OM, "timeGetTime64");								// timeGetTime but 64-bit, from KDMAPI
-	SDD = (MMRESULT*)GetProcAddress(OM, "SendDirectData");							// Send short messages to KDMAPI
-	SDLD = (MMRESULT*)GetProcAddress(OM, "SendDirectLongData");						// Send long messages to KDMAPI
-	PLD = (MMRESULT*)GetProcAddress(OM, "PrepareLongData");							// Prepare long message with KDMAPI
-	UPLD = (MMRESULT*)GetProcAddress(OM, "UnprepareLongData");						// Unprepare long message with KDMAPI
-	mM = (MMRESULT*)GetProcAddress(OM, "modMessage");								// Other stuff from the driver
-	RKDMAPIV = (BOOL*)GetProcAddress(OM, "ReturnKDMAPIVer");						// Used to check KDMAPI
-	IOMS = (void*)GetProcAddress(OM, "InitializeKDMAPIStream");						// Initialize the audio output and the threads
-	TOMS = (void*)GetProcAddress(OM, "TerminateKDMAPIStream");						// Terminate the audio output and the threads
-	ROMS = (void*)GetProcAddress(OM, "ResetKDMAPIStream");							// Reset the audio output and the MIDI channels
-	IKDMAPIA = (BOOL*)GetProcAddress(OM, "IsKDMAPIAvailable");						// Dummy, used to enable the KDMAPI flag in the debug window
-	NQST = (NTSTATUS*)GetProcAddress(GetModuleHandleA("ntdll"), "NtQuerySystemTime");
+	SCE = (void*)GetProcAddress(OM, "SendCustomEvent");									// Send custom messages to KDMAPI
+	TGT64 = (void*)GetProcAddress(OM, "timeGetTime64");									// timeGetTime but 64-bit, from KDMAPI
+	SDD = (MMRESULT*)GetProcAddress(OM, "SendDirectData");								// Send short messages to KDMAPI
+	SDLD = (MMRESULT*)GetProcAddress(OM, "SendDirectLongData");							// Send long messages to KDMAPI
+	PLD = (MMRESULT*)GetProcAddress(OM, "PrepareLongData");								// Prepare long message with KDMAPI
+	UPLD = (MMRESULT*)GetProcAddress(OM, "UnprepareLongData");							// Unprepare long message with KDMAPI
+	mM = (MMRESULT*)GetProcAddress(OM, "modMessage");									// Other stuff from the driver
+	RKDMAPIV = (BOOL*)GetProcAddress(OM, "ReturnKDMAPIVer");							// Used to check KDMAPI
+	IOMS = (void*)GetProcAddress(OM, "InitializeKDMAPIStream");							// Initialize the audio output and the threads
+	TOMS = (void*)GetProcAddress(OM, "TerminateKDMAPIStream");							// Terminate the audio output and the threads
+	ROMS = (void*)GetProcAddress(OM, "ResetKDMAPIStream");								// Reset the audio output and the MIDI channels
+	IKDMAPIA = (BOOL*)GetProcAddress(OM, "IsKDMAPIAvailable");							// Dummy, used to enable the KDMAPI flag in the debug window
+	NQST = (NTSTATUS*)GetProcAddress(GetModuleHandleA("ntdll"), "NtQuerySystemTime");	// Required for TGT
 
 	if (!SCE || !TGT64 || !SDD || !SDLD || !PLD ||
 		!UPLD || !mM || !RKDMAPIV || !IOMS || !TOMS ||
@@ -531,7 +531,7 @@ VOID WINAPI KDMAPI_poweredByKeppy() {
 DWORD WINAPI KDMAPI_timeGetTime() {
 	ULONGLONG CurrentTime;
 	NQST(&CurrentTime);
-	return (DWORD)(CurrentTime - TickStart) / 10000;
+	return (DWORD)((CurrentTime - TickStart) * (1.0 / 10000.0));
 }
 
 DWORD64 WINAPI KDMAPI_timeGetTime64() {
