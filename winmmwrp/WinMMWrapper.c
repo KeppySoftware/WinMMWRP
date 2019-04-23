@@ -9,10 +9,10 @@
 
 #define LONGMSG_MAXSIZE		65535	// Maximum size for a long message/MIDIHDR
 
-#define LOCK_VM_IN_WORKING_SET 1
-#define LOCK_VM_IN_RAM 2
+#define NT_SUCCESS(StatCode) ((NTSTATUS)(StatCode) == 0)
 
-#pragma once
+typedef unsigned __int64 QWORD;
+typedef long NTSTATUS;
 
 // Required KDMAPI version
 #define REQ_MAJOR	1
@@ -20,10 +20,11 @@
 #define REQ_BUILD	0
 #define REQ_REV		0
 
+
 // KDMAPI version from library
 static DWORD DrvMajor = 0, DrvMinor = 0, DrvBuild = 0, DrvRevision = 0;
 
-// OM funcs															// QPC Frequency
+// OM funcs
 static HMODULE OM = NULL;																				// OM lib
 static DWORD_PTR OMUser;																				// Dummy pointer, used for KDMAPI Output
 static HMIDI OMDummy = 0x10001;																			// Dummy pointer, used for KDMAPI Output
@@ -39,6 +40,11 @@ static BOOL(WINAPI*IOMS)(VOID) = 0;																		// InitializeKDMAPIStream
 static BOOL(WINAPI*TOMS)(VOID) = 0;																		// TerminateKDMAPIStream
 static VOID(WINAPI*ROMS)(VOID) = 0;																		// ResetKDMAPIStream
 static BOOL(WINAPI*IKDMAPIA)(VOID) = 0;																	// IsKDMAPIAvailable
+
+// WinNT Kernel funcs
+static HMODULE NTDLL = NULL;
+static ULONGLONG TickStart = 0;																			// For TGT64
+static NTSTATUS(NTAPI*NQST)(QWORD*) = 0;															// NtQuerySystemTime
 
 // Callback, used for old apps that require one
 static DWORD_PTR WMMCI;
@@ -91,20 +97,27 @@ BOOL CheckIfKDMAPIIsUpToDate() {
 }
 
 BOOL InitializeOMDirectAPI() {
-	wchar_t SystemDirectory[MAX_PATH];
-	GetSystemDirectoryW(SystemDirectory, MAX_PATH);
-	wcscat(SystemDirectory, L"\\OmniMIDI\\OmniMIDI.dll");
+	wchar_t OMDir[MAX_PATH];
+
+	// Clear memory
+	memset(OMDir, 0, sizeof(OMDir));
+
+	// Get system directory
+	GetSystemDirectoryW(OMDir, MAX_PATH);
+
+	// Append system directory to OMDir and NTDLLDir, with their respective targets
+	wcscat(OMDir, L"\\OmniMIDI\\OmniMIDI.dll");
 
 	// Load the default DLL from the app's directory
 	OM = LoadLibraryW(L"OmniMIDI.dll");
 	if (!OM) {
 		// Failed, try loading it from the system directory
-		OM = LoadLibraryW(SystemDirectory);
+		OM = LoadLibraryW(OMDir);
 		if (!OM) {
 			// Failed, OmniMIDI is not available, exit the program
 			MessageBox(
 				NULL,
-				"LoadLibraryW failed. Can not load OmniMIDI to memory!\nThe wrapper requires OmniMIDI to be installed, or its runtime to be extracted in the same directory as the wrapper itself.\n\nPress OK close this app.",
+				"LoadLibraryW for OmniMIDI.dll failed. Can not load OmniMIDI to memory!\nThe wrapper requires OmniMIDI to be installed, or its runtime to be extracted in the same directory as the wrapper itself.\n\nPress OK close this app.",
 				"KDMAPI ERROR",
 				MB_ICONERROR | MB_OK | MB_SYSTEMMODAL
 			);
@@ -113,22 +126,23 @@ BOOL InitializeOMDirectAPI() {
 		}
 	}
 
-	SCE = (void*)GetProcAddress(OM, "SendCustomEvent");				// Send custom messages to KDMAPI
-	TGT64 = (void*)GetProcAddress(OM, "timeGetTime64");				// timeGetTime but 64-bit, from KDMAPI
-	SDD = (MMRESULT*)GetProcAddress(OM, "SendDirectData");			// Send short messages to KDMAPI
-	SDLD = (MMRESULT*)GetProcAddress(OM, "SendDirectLongData");		// Send long messages to KDMAPI
-	PLD = (MMRESULT*)GetProcAddress(OM, "PrepareLongData");			// Prepare long message with KDMAPI
-	UPLD = (MMRESULT*)GetProcAddress(OM, "UnprepareLongData");		// Unprepare long message with KDMAPI
-	mM = (MMRESULT*)GetProcAddress(OM, "modMessage");				// Other stuff from the driver
-	RKDMAPIV = (BOOL*)GetProcAddress(OM, "ReturnKDMAPIVer");		// Used to check KDMAPI
-	IOMS = (void*)GetProcAddress(OM, "InitializeKDMAPIStream");		// Initialize the audio output and the threads
-	TOMS = (void*)GetProcAddress(OM, "TerminateKDMAPIStream");		// Terminate the audio output and the threads
-	ROMS = (void*)GetProcAddress(OM, "ResetKDMAPIStream");			// Reset the audio output and the MIDI channels
-	IKDMAPIA = (BOOL*)GetProcAddress(OM, "IsKDMAPIAvailable");		// Dummy, used to enable the KDMAPI flag in the debug window
+	SCE = (void*)GetProcAddress(OM, "SendCustomEvent");								// Send custom messages to KDMAPI
+	TGT64 = (void*)GetProcAddress(OM, "timeGetTime64");								// timeGetTime but 64-bit, from KDMAPI
+	SDD = (MMRESULT*)GetProcAddress(OM, "SendDirectData");							// Send short messages to KDMAPI
+	SDLD = (MMRESULT*)GetProcAddress(OM, "SendDirectLongData");						// Send long messages to KDMAPI
+	PLD = (MMRESULT*)GetProcAddress(OM, "PrepareLongData");							// Prepare long message with KDMAPI
+	UPLD = (MMRESULT*)GetProcAddress(OM, "UnprepareLongData");						// Unprepare long message with KDMAPI
+	mM = (MMRESULT*)GetProcAddress(OM, "modMessage");								// Other stuff from the driver
+	RKDMAPIV = (BOOL*)GetProcAddress(OM, "ReturnKDMAPIVer");						// Used to check KDMAPI
+	IOMS = (void*)GetProcAddress(OM, "InitializeKDMAPIStream");						// Initialize the audio output and the threads
+	TOMS = (void*)GetProcAddress(OM, "TerminateKDMAPIStream");						// Terminate the audio output and the threads
+	ROMS = (void*)GetProcAddress(OM, "ResetKDMAPIStream");							// Reset the audio output and the MIDI channels
+	IKDMAPIA = (BOOL*)GetProcAddress(OM, "IsKDMAPIAvailable");						// Dummy, used to enable the KDMAPI flag in the debug window
+	NQST = (NTSTATUS*)GetProcAddress(GetModuleHandleA("ntdll"), "NtQuerySystemTime");
 
 	if (!SCE || !TGT64 || !SDD || !SDLD || !PLD ||
 		!UPLD || !mM || !RKDMAPIV || !IOMS || !TOMS ||
-		!ROMS || !IKDMAPIA) {
+		!ROMS || !IKDMAPIA || !NQST) {
 		// One of the functions failed to load, exit
 		MessageBox(
 			NULL,
@@ -137,6 +151,12 @@ BOOL InitializeOMDirectAPI() {
 			MB_ICONERROR | MB_OK | MB_SYSTEMMODAL
 		);
 
+		return FALSE;
+	}
+
+	if (!NT_SUCCESS(NQST(&TickStart))) {
+		MessageBoxA(NULL, "Failed to parse starting tick through NtQuerySystemTime!\nPress OK to stop the loading process of OmniMIDI.", 
+			"KDMAPI ERROR", MB_ICONERROR | MB_SYSTEMMODAL);
 		return FALSE;
 	}
 
@@ -402,10 +422,6 @@ MMRESULT WINAPI KDMAPI_midiOutGetID(HMIDIOUT hMidiOut, LPUINT puDeviceID) {
 	return MMSYSERR_NOERROR;
 }
 
-DWORD64 WINAPI KDMAPI_timeGetTime64() {
-	return TGT64();
-}
-
 UINT WINAPI KDMAPI_mmsystemGetVersion(void) {
 	// Dummy, not needed
 	return 0x0502U;
@@ -510,4 +526,14 @@ MMRESULT WINAPI KDMAPI_midiStreamPosition(HMIDISTRM hStream, LPMMTIME pmmt, UINT
 
 VOID WINAPI KDMAPI_poweredByKeppy() {
 	MessageBox(NULL, "With love by Keppy.", "Windows Multimedia Wrapper", MB_OK | MB_ICONINFORMATION | MB_SYSTEMMODAL);
+}
+
+DWORD WINAPI KDMAPI_timeGetTime() {
+	ULONGLONG CurrentTime;
+	NQST(&CurrentTime);
+	return (DWORD)(CurrentTime - TickStart) / 10000;
+}
+
+DWORD64 WINAPI KDMAPI_timeGetTime64() {
+	return TGT64();
 }

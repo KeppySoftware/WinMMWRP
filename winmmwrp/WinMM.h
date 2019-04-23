@@ -410,14 +410,6 @@ struct MMImport
 	MMI(waveOutWrite)
 };
 
-DWORD WINAPI INTERNAL_timeGetTime() {
-	return (DWORD)TGT64();
-}
-
-DWORD WINAPI KDMAPI_timeGetTime() {
-	return INtimeGetTime();
-}
-
 BOOL InitializeWinMM() {
 	// Load WinMM
 	wchar_t SystemDirectory[MAX_PATH];
@@ -458,18 +450,6 @@ BOOL InitializeWinMM() {
 			return FALSE;
 		}
 	}
-
-	// Check if the user wants to use WinMM's stock TGT or internal version
-	HKEY hKey;
-	DWORD dwType = REG_DWORD, dwSize = sizeof(DWORD);
-	BOOL val = FALSE;
-	LSTATUS op = RegOpenKeyEx(HKEY_CURRENT_USER, "Software\\OmniMIDI\\Configuration", 0, KEY_READ, &hKey);
-	RegQueryValueEx(hKey, "NewTGT", NULL, &dwType, (LPBYTE)&val, &dwSize);
-
-	if (val) INtimeGetTime = INTERNAL_timeGetTime;
-	else INtimeGetTime = MMtimeGetTime;
-
-	RegCloseKey(hKey);
 
 	return TRUE;
 }
