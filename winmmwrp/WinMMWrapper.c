@@ -160,16 +160,33 @@ BOOL InitializeOMDirectAPI() {
 		return FALSE;
 	}
 
-	BOOL Valid = CheckIfKDMAPIIsUpToDate();
-	if (Valid) IKDMAPIA();
-
-	return Valid;
+	if (CheckIfKDMAPIIsUpToDate()) {
+		IKDMAPIA();
+		return TRUE;
+	}
 }
 
 BOOL DllMain(HINSTANCE hInstDLL, DWORD fdwReason, LPVOID fImpLoad) {
-	if (fdwReason == DLL_PROCESS_ATTACH) {
-		if (!InitializeWinMM() || !InitializeOMDirectAPI()) return FALSE;
+	switch (fdwReason) {
+	case DLL_PROCESS_ATTACH:
+	{
+		if (InitializeWinMM())
+			if (InitializeOMDirectAPI())
+				return TRUE;
 	}
+	case DLL_PROCESS_DETACH:
+	{
+		FreeLibrary(OM);
+
+		for (int i = 0; i < sizeof(MMImports) / sizeof(MMImports[0]); i++)
+			*(MMImports[i].ptr) = 0;
+
+		FreeLibrary(OWINMM);
+
+		return TRUE;
+	}
+	}
+
 	return TRUE;
 }
 
