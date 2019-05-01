@@ -25,6 +25,7 @@ typedef long NTSTATUS;
 static DWORD DrvMajor = 0, DrvMinor = 0, DrvBuild = 0, DrvRevision = 0;
 
 // OM funcs
+static BOOL OMAlreadyInit = FALSE;																		// To check if OM has already been initialized
 static HMODULE OM = NULL;																				// OM lib
 static DWORD_PTR OMUser;																				// Dummy pointer, used for KDMAPI Output
 static HMIDI OMDummy = 0x10001;																			// Dummy pointer, used for KDMAPI Output
@@ -307,26 +308,32 @@ MMRESULT WINAPI KDMAPI_midiOutOpen(LPHMIDIOUT lphmo, UINT uDeviceID, DWORD_PTR d
 			return retval;
 	}
 #endif
-	// Close any stream, just to be safe
-	TOMS();
+	if (!OMAlreadyInit) {
+		// Close any stream, just to be safe
+		TOMS();
 
-	// Initialize a dummy out device
-	*lphmo = OMDummy;
+		// Initialize a dummy out device
+		*lphmo = OMDummy;
 
-	// Initialize MIDI out
-	if (!IOMS())
-		return MMSYSERR_ALLOCATED;
+		// Initialize MIDI out
+		if (!IOMS())
+			return MMSYSERR_ALLOCATED;
 
-	// Setup the Callback (If there's one) - NEEDED FOR VANBASCO!
-	// If dwflags is CALLBACK_EVENT, then skip, since it's not needed. (Java pls)
-	if ((dwFlags != CALLBACK_NULL) && (dwFlags != CALLBACK_EVENT)) {
-		WMMC = (void*)dwCallback;
-		WMMCI = dwCallbackInstance;
+		// Setup the Callback (If there's one) - NEEDED FOR VANBASCO!
+		// If dwflags is CALLBACK_EVENT, then skip, since it's not needed. (Java pls)
+		if ((dwFlags != CALLBACK_NULL) && (dwFlags != CALLBACK_EVENT)) {
+			WMMC = (void*)dwCallback;
+			WMMCI = dwCallbackInstance;
 
-		if (WMMC) WMMC((*lphmo), MM_MOM_OPEN, WMMCI, 0, 0);
+			if (WMMC) WMMC((*lphmo), MM_MOM_OPEN, WMMCI, 0, 0);
+		}
+
+		OMAlreadyInit = TRUE;
+		return MMSYSERR_NOERROR;
 	}
+	else MessageBox(NULL, "OmniMIDI has been already initialized via KDMAPI! Can not initialize it again!", "KDMAPI ERROR", MB_SYSTEMMODAL | MB_ICONERROR);
 
-	return MMSYSERR_NOERROR;
+	return MMSYSERR_ALLOCATED;
 }
 
 MMRESULT WINAPI KDMAPI_midiOutClose(HMIDIOUT hMidiOut) {
@@ -334,9 +341,14 @@ MMRESULT WINAPI KDMAPI_midiOutClose(HMIDIOUT hMidiOut) {
 	if (hMidiOut != OMDummy) return MMmidiOutClose(hMidiOut);
 #endif
 	// Close OM
-	if (!TOMS()) return MMSYSERR_NOMEM;
-	if (WMMC) WMMC(hMidiOut, MM_MOM_OPEN, WMMCI, 0, 0);
-	hMidiOut = (HMIDI)0;
+	if (OMAlreadyInit) {
+		if (!TOMS()) return MMSYSERR_NOMEM;
+		if (WMMC) WMMC(hMidiOut, MM_MOM_OPEN, WMMCI, 0, 0);
+
+		hMidiOut = (HMIDI)0;
+		OMAlreadyInit = FALSE;
+	}
+
 	return MMSYSERR_NOERROR;
 }
 
@@ -463,23 +475,28 @@ MMRESULT WINAPI KDMAPI_midiStreamOpen(LPHMIDISTRM lphStream, LPUINT puDeviceID, 
 		}
 	}
 #endif
-	*lphStream = OMDummy;
+	if (!OMAlreadyInit) {
+		*lphStream = OMDummy;
 
-	MIDIOUTCAPSW myCapsW = { 0 };
-	UINT myCapsWSize = sizeof(MIDIOUTCAPSW);
-	retval = mM(0, MODM_GETDEVCAPS, OMUser, &myCapsW, myCapsWSize);
+		MIDIOUTCAPSW myCapsW = { 0 };
+		UINT myCapsWSize = sizeof(MIDIOUTCAPSW);
+		retval = mM(0, MODM_GETDEVCAPS, OMUser, &myCapsW, myCapsWSize);
 
-	MIDIOPENDESC OpenDesc = { 0 };
-	OpenDesc.hMidi = lphStream;
-	OpenDesc.dwCallback = dwCallback;
-	OpenDesc.dwInstance = dwCallbackInstance;
+		MIDIOPENDESC OpenDesc = { 0 };
+		OpenDesc.hMidi = lphStream;
+		OpenDesc.dwCallback = dwCallback;
+		OpenDesc.dwInstance = dwCallbackInstance;
 
-	// Call modMessage
-	retval = mM(0, MODM_OPEN, &OMUser, &OpenDesc, fdwOpen | 0x00000002L);
-	IKDMAPIA();
+		// Call modMessage
+		retval = mM(0, MODM_OPEN, &OMUser, &OpenDesc, fdwOpen | 0x00000002L);
+		IKDMAPIA();
 
-	// Everything is oki-doki
-	return retval;
+		// Everything is oki-doki
+		return retval;
+	}
+	else MessageBox(NULL, "OmniMIDI has been already initialized via KDMAPI! Can not initialize it again!", "KDMAPI ERROR", MB_SYSTEMMODAL | MB_ICONERROR);
+
+	return MMSYSERR_ALLOCATED;
 }
 
 MMRESULT WINAPI KDMAPI_midiStreamClose(HMIDISTRM hStream) {
@@ -487,10 +504,14 @@ MMRESULT WINAPI KDMAPI_midiStreamClose(HMIDISTRM hStream) {
 	if (hStream != OMDummy) return MMmidiStreamClose(hStream);
 #endif
 	// Terminate CookedPlayer, free up hStream and return 0
-	MMRESULT retval = mM(0, MODM_CLOSE, OMUser, 0, 0);
-	if (!retval)
-		hStream = (HMIDI)0;
-	return retval;
+	if (!OMAlreadyInit) {
+		MMRESULT retval = mM(0, MODM_CLOSE, OMUser, 0, 0);
+		if (!retval)
+			hStream = (HMIDI)0;
+		return retval;
+	}
+
+	return MMSYSERR_NOERROR;
 }
 
 MMRESULT WINAPI KDMAPI_midiStreamOut(HMIDISTRM hStream, LPMIDIHDR lpMidiOutHdr, UINT uSize) {
