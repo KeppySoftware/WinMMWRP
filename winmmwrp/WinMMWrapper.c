@@ -174,6 +174,8 @@ BOOL DllMain(HINSTANCE hInstDLL, DWORD fdwReason, LPVOID fImpLoad) {
 		if (InitializeWinMM())
 			if (InitializeOMDirectAPI())
 				return TRUE;
+
+		return FALSE;
 	}
 	case DLL_PROCESS_DETACH:
 	{
