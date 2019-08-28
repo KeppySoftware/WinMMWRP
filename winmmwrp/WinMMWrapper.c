@@ -16,10 +16,9 @@ typedef long NTSTATUS;
 
 // Required KDMAPI version
 #define REQ_MAJOR	1
-#define REQ_MINOR	51
+#define REQ_MINOR	60
 #define REQ_BUILD	0
 #define REQ_REV		0
-
 
 // KDMAPI version from library
 static DWORD DrvMajor = 0, DrvMinor = 0, DrvBuild = 0, DrvRevision = 0;
@@ -30,6 +29,7 @@ static HMODULE OM = NULL;																				// OM lib
 static DWORD_PTR OMUser;																				// Dummy pointer, used for KDMAPI Output
 static HMIDI OMDummy = 0x10001;																			// Dummy pointer, used for KDMAPI Output
 static DWORD64(WINAPI*TGT64)() = 0;																		// timeGetTime64
+static BOOL(WINAPI*DS)(DWORD, DWORD, LPVOID, UINT) = 0;													// DriverSettings
 static VOID(WINAPI*SCE)(DWORD, DWORD, DWORD) = 0;														// SendCustomEvent
 static MMRESULT(WINAPI*SDD)(DWORD) = 0;																	// SendDirectData
 static MMRESULT(WINAPI*SDLD)(LPMIDIHDR) = 0;															// SendDirectLongData
@@ -45,7 +45,7 @@ static BOOL(WINAPI*IKDMAPIA)(VOID) = 0;																	// IsKDMAPIAvailable
 // WinNT Kernel funcs
 static HMODULE NTDLL = NULL;
 static ULONGLONG TickStart = 0;																			// For TGT64
-static NTSTATUS(NTAPI*NQST)(QWORD*) = 0;															// NtQuerySystemTime
+static NTSTATUS(NTAPI*NQST)(QWORD*) = 0;																// NtQuerySystemTime
 
 // Callback, used for old apps that require one
 static DWORD_PTR WMMCI;
@@ -127,6 +127,7 @@ BOOL InitializeOMDirectAPI() {
 		}
 	}
 
+	DS = (void*)GetProcAddress(OM, "DriverSettings");									// Change settings via KDMAPI
 	SCE = (void*)GetProcAddress(OM, "SendCustomEvent");									// Send custom messages to KDMAPI
 	TGT64 = (void*)GetProcAddress(OM, "timeGetTime64");									// timeGetTime but 64-bit, from KDMAPI
 	SDD = (MMRESULT*)GetProcAddress(OM, "SendDirectData");								// Send short messages to KDMAPI
@@ -141,7 +142,7 @@ BOOL InitializeOMDirectAPI() {
 	IKDMAPIA = (BOOL*)GetProcAddress(OM, "IsKDMAPIAvailable");							// Dummy, used to enable the KDMAPI flag in the debug window
 	NQST = (NTSTATUS*)GetProcAddress(GetModuleHandleA("ntdll"), "NtQuerySystemTime");	// Required for TGT
 
-	if (!SCE || !TGT64 || !SDD || !SDLD || !PLD ||
+	if (!DS || !SCE || !TGT64 || !SDD || !SDLD || !PLD ||
 		!UPLD || !mM || !RKDMAPIV || !IOMS || !TOMS ||
 		!ROMS || !IKDMAPIA || !NQST) {
 		// One of the functions failed to load, exit
@@ -320,6 +321,8 @@ MMRESULT WINAPI KDMAPI_midiOutOpen(LPHMIDIOUT lphmo, UINT uDeviceID, DWORD_PTR d
 		// Initialize MIDI out
 		if (!IOMS())
 			return MMSYSERR_ALLOCATED;
+
+		DS(0xFFFFF, NULL, NULL, NULL);
 
 		// Setup the Callback (If there's one) - NEEDED FOR VANBASCO!
 		// If dwflags is CALLBACK_EVENT, then skip, since it's not needed. (Java pls)

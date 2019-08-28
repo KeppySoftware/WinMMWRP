@@ -1,7 +1,6 @@
 LIBRARY	winmm.dll
 
 EXPORTS
-	timeGetTime						= KDMAPI_timeGetTime
 	CloseDriver						= WINMM_CloseDriver
 	DefDriverProc					= WINMM_DefDriverProc
 	DriverCallback					= WINMM_DriverCallback
@@ -10,15 +9,18 @@ EXPORTS
 	OpenDriver						= WINMM_OpenDriver
 	PlaySound						= WINMM_PlaySound
 	PlaySoundA						= WINMM_PlaySoundA
+	PlaySoundStub					= WINMM_PlaySoundA	@2
 	PlaySoundW						= WINMM_PlaySoundW
 	PoweredByKeppy					= KDMAPI_poweredByKeppy
 	SendDriverMessage				= WINMM_SendDriverMessage
+	aux32Message					= WINMM_aux32Message
 	auxGetDevCapsA					= WINMM_auxGetDevCapsA
 	auxGetDevCapsW					= WINMM_auxGetDevCapsW
 	auxGetNumDevs					= WINMM_auxGetNumDevs
 	auxGetVolume					= WINMM_auxGetVolume
 	auxOutMessage					= WINMM_auxOutMessage
 	auxSetVolume					= WINMM_auxSetVolume
+	joy32Message					= WINMM_joy32Message
 	joyConfigChanged				= WINMM_joyConfigChanged
 	joyGetDevCapsA					= WINMM_joyGetDevCapsA
 	joyGetDevCapsW					= WINMM_joyGetDevCapsW
@@ -29,6 +31,7 @@ EXPORTS
 	joyReleaseCapture				= WINMM_joyReleaseCapture
 	joySetCapture					= WINMM_joySetCapture
 	joySetThreshold					= WINMM_joySetThreshold
+	mci32Message					= WINMM_mci32Message
 	mciDriverNotify					= WINMM_mciDriverNotify
 	mciDriverYield					= WINMM_mciDriverYield
 	mciExecute						= WINMM_mciExecute
@@ -49,6 +52,7 @@ EXPORTS
 	mciSendStringW					= WINMM_mciSendStringW
 	mciSetDriverData				= WINMM_mciSetDriverData
 	mciSetYieldProc					= WINMM_mciSetYieldProc
+	mid32Message					= WINMM_mid32Message
 	midiConnect						= WINMM_midiConnect
 	midiDisconnect					= WINMM_midiDisconnect
 	midiInAddBuffer					= WINMM_midiInAddBuffer
@@ -133,12 +137,17 @@ EXPORTS
 	mmioStringToFOURCCW				= WINMM_mmioStringToFOURCCW
 	mmioWrite						= WINMM_mmioWrite
 	mmsystemGetVersion				= KDMAPI_mmsystemGetVersion
+	mod32Message					= WINMM_mod32Message
+	mxd32Message					= WINMM_mxd32Message
+	sndPlaySound					= WINMM_sndPlaySound
 	sndPlaySoundA					= WINMM_sndPlaySoundA
 	sndPlaySoundW					= WINMM_sndPlaySoundW
+	tid32Message					= WINMM_tid32Message
 	timeBeginPeriod					= WINMM_timeBeginPeriod
 	timeEndPeriod					= WINMM_timeEndPeriod
 	timeGetDevCaps					= WINMM_timeGetDevCaps
 	timeGetSystemTime				= WINMM_timeGetSystemTime
+	timeGetTime						= KDMAPI_timeGetTime
 	timeGetTime64					= KDMAPI_timeGetTime64
 	timeKillEvent					= WINMM_timeKillEvent
 	timeSetEvent					= WINMM_timeSetEvent
@@ -181,3 +190,5 @@ EXPORTS
 	waveOutSetVolume				= WINMM_waveOutSetVolume
 	waveOutUnprepareHeader			= WINMM_waveOutUnprepareHeader
 	waveOutWrite					= WINMM_waveOutWrite
+	wid32Message					= WINMM_wid32Message
+	wod32Message					= WINMM_wod32Message

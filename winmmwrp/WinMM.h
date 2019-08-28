@@ -4,6 +4,10 @@
 static HMODULE OWINMM = NULL;
 static DWORD(WINAPI*INtimeGetTime)() = 0;
 
+// Wine check
+static const char* (WINAPI*WGBI)(void) = 0;
+static INT Dummy = 0xFFFFF;
+
 // MIDI out stuff
 static MMRESULT(WINAPI*MMmidiStreamClose)(HMIDISTRM) = 0;
 static MMRESULT(WINAPI*MMmidiStreamOpen)(LPHMIDISTRM, LPUINT, DWORD, DWORD_PTR, DWORD_PTR, DWORD) = 0;
@@ -161,6 +165,7 @@ static VOID(WINAPI*MMmmTaskYield)() = 0;
 // MM stuff
 
 // PlaySound stuff
+static BOOL(WINAPI*MMPlaySound)(LPCTSTR, HMODULE, DWORD) = 0;
 static BOOL(WINAPI*MMPlaySoundA)(LPCTSTR, HMODULE, DWORD) = 0;
 static BOOL(WINAPI*MMPlaySoundW)(LPCWSTR, HMODULE, DWORD) = 0;
 static BOOL(WINAPI*MMsndPlaySoundA)(LPCWSTR, UINT) = 0;
@@ -224,6 +229,20 @@ static MMRESULT(WINAPI*MMwaveInUnprepareHeader)(HWAVEIN, LPWAVEHDR, UINT) = 0;
 static UINT(WINAPI*MMwaveInGetNumDevs)() = 0;
 // Wave in stuff
 
+#ifdef _M_IX86
+// Legacy 16-bit functions
+static MMRESULT(WINAPI*MMaux32Message)(UINT_PTR, UINT, DWORD_PTR, DWORD_PTR, DWORD_PTR) = 0;
+static MMRESULT(WINAPI*MMjoy32Message)(UINT_PTR, UINT, DWORD_PTR, DWORD_PTR, DWORD_PTR) = 0;
+static MMRESULT(WINAPI*MMmci32Message)(UINT_PTR, UINT, DWORD_PTR, DWORD_PTR, DWORD_PTR) = 0;
+static MMRESULT(WINAPI*MMmid32Message)(UINT_PTR, UINT, DWORD_PTR, DWORD_PTR, DWORD_PTR) = 0;
+static MMRESULT(WINAPI*MMmod32Message)(UINT_PTR, UINT, DWORD_PTR, DWORD_PTR, DWORD_PTR) = 0;
+static MMRESULT(WINAPI*MMmxd32Message)(UINT_PTR, UINT, DWORD_PTR, DWORD_PTR, DWORD_PTR) = 0;
+static MMRESULT(WINAPI*MMtid32Message)(UINT_PTR, UINT, DWORD_PTR, DWORD_PTR, DWORD_PTR) = 0;
+static MMRESULT(WINAPI*MMwid32Message)(UINT_PTR, UINT, DWORD_PTR, DWORD_PTR, DWORD_PTR) = 0;
+static MMRESULT(WINAPI*MMwod32Message)(UINT_PTR, UINT, DWORD_PTR, DWORD_PTR, DWORD_PTR) = 0;
+// Legacy 16-bit functions
+#endif
+
 // Quickity quackity
 #define MMI(f) {& MM##f, #f}
 struct MMImport
@@ -238,6 +257,7 @@ struct MMImport
 	MMI(DrvGetModuleHandle),
 	MMI(GetDriverModuleHandle),
 	MMI(OpenDriver),
+	MMI(PlaySound),
 	MMI(PlaySoundA),
 	MMI(PlaySoundW),
 	MMI(SendDriverMessage),
@@ -407,52 +427,20 @@ struct MMImport
 	MMI(waveOutSetPlaybackRate),
 	MMI(waveOutSetVolume),
 	MMI(waveOutUnprepareHeader),
-	MMI(waveOutWrite)
+	MMI(waveOutWrite),
+
+#ifdef _M_IX86
+	MMI(aux32Message),
+	MMI(joy32Message),
+	MMI(mci32Message),
+	MMI(mid32Message),
+	MMI(mod32Message),
+	MMI(mxd32Message),
+	MMI(tid32Message),
+	MMI(wid32Message),
+	MMI(wod32Message)
+#endif
 };
-
-BOOL InitializeWinMM() {
-	// Load WinMM
-	wchar_t SystemDirectory[MAX_PATH];
-	GetSystemDirectoryW(SystemDirectory, MAX_PATH);
-	wcscat(SystemDirectory, L"\\winmm.dll");
-
-	OWINMM = LoadLibraryW(SystemDirectory);
-	if (!OWINMM) {
-		MessageBox(
-			NULL,
-			"An error has occured during the initialization of the Windows Multimedia Extensions API!\n\nPress OK to exit.",
-			"KDMAPI ERROR",
-			MB_ICONERROR | MB_OK | MB_SYSTEMMODAL
-		);
-
-		return FALSE;
-	}
-
-	// LOAD EVERYTHING!
-	TCHAR ErrorBuf[1024];
-	for (int i = 0; i < sizeof(MMImports) / sizeof(MMImports[0]); i++)
-	{
-		*(MMImports[i].ptr) = (void*)GetProcAddress(OWINMM, MMImports[i].name);
-
-		if (!*(MMImports[i].ptr)) {
-			sprintf_s(
-				ErrorBuf,
-				1024,
-				"An error has occured while loading \"%s\" from WinMM.\n\nFailed to load the Windows Multimedia Extensions API, press OK to exit.",
-				MMImports[i].name);
-
-			MessageBox(
-				NULL,
-				ErrorBuf,
-				"KDMAPI ERROR",
-				MB_ICONERROR | MB_OK | MB_SYSTEMMODAL
-			);
-			return FALSE;
-		}
-	}
-
-	return TRUE;
-}
 
 // Functions start -> HERE <-
 
@@ -840,19 +828,23 @@ VOID WINAPI WINMM_mmTaskYield() {
 	MMmmTaskYield();
 }
 
-BOOL WINAPI WINMM_PlaySound(LPCTSTR pszS, HMODULE hmod, DWORD fdwS) {
-	return MMPlaySoundA(pszS, hmod, fdwS);
+BOOL WINAPI WINMM_PlaySound(LPCSTR pszS, HMODULE hmod, DWORD fdwS) {
+	return MMPlaySound(pszS, hmod, fdwS);
 }
 
-BOOL WINAPI WINMM_PlaySoundA(LPCTSTR pszS, HMODULE hmod, DWORD fdwS) {
-	return WINMM_PlaySound(pszS, hmod, fdwS);
+BOOL WINAPI WINMM_PlaySoundA(LPCSTR pszS, HMODULE hmod, DWORD fdwS) {
+	return MMPlaySoundA(pszS, hmod, fdwS);
 }
 
 BOOL WINAPI WINMM_PlaySoundW(LPCWSTR pszS, HMODULE hmod, DWORD fdwS) {
 	return MMPlaySoundW(pszS, hmod, fdwS);
 }
 
-BOOL WINAPI WINMM_sndPlaySoundA(LPCTSTR pszS, DWORD fuS) {
+BOOL WINAPI WINMM_sndPlaySound(LPCSTR pszS, DWORD fuS) {
+	return MMsndPlaySoundA(pszS, fuS);
+}
+
+BOOL WINAPI WINMM_sndPlaySoundA(LPCSTR pszS, DWORD fuS) {
 	return MMsndPlaySoundA(pszS, fuS);
 }
 
@@ -1050,6 +1042,11 @@ MMRESULT WINAPI WINMM_waveInStop(HWAVEIN hw) {
 
 UINT WINAPI WINMM_waveInGetNumDevs() {
 	return MMwaveInGetNumDevs();
+
+}
+
+DWORD WINAPI WINMM_timeGetTime() {
+	return MMtimeGetTime();
 }
 
 MMRESULT WINAPI WINMM_timeGetDevCaps(LPTIMECAPS ptc, UINT cbtc) {
@@ -1074,4 +1071,125 @@ MMRESULT WINAPI WINMM_timeBeginPeriod(UINT uPeriod) {
 
 MMRESULT WINAPI WINMM_timeEndPeriod(UINT uPeriod) {
 	return MMtimeEndPeriod(uPeriod);
+}
+
+#ifdef _M_IX86
+MMRESULT WINAPI WINMM_aux32Message(UINT_PTR uDeviceID, UINT uMsg, DWORD_PTR hMidi, DWORD_PTR dwParam1, DWORD_PTR dwParam2) {
+	if (MMaux32Message != Dummy) return MMaux32Message(uDeviceID, uMsg, hMidi, dwParam1, dwParam2);
+	else return MMSYSERR_NOERROR;
+}
+
+MMRESULT WINAPI WINMM_joy32Message(UINT_PTR uDeviceID, UINT uMsg, DWORD_PTR hMidi, DWORD_PTR dwParam1, DWORD_PTR dwParam2) {
+	if (MMjoy32Message != Dummy) return MMjoy32Message(uDeviceID, uMsg, hMidi, dwParam1, dwParam2);
+	else return MMSYSERR_NOERROR;
+}
+
+MMRESULT WINAPI WINMM_mci32Message(UINT_PTR uDeviceID, UINT uMsg, DWORD_PTR hMidi, DWORD_PTR dwParam1, DWORD_PTR dwParam2) {
+	if (MMmci32Message != Dummy) return MMmci32Message(uDeviceID, uMsg, hMidi, dwParam1, dwParam2);
+	else return MMSYSERR_NOERROR;
+}
+
+MMRESULT WINAPI WINMM_mid32Message(UINT_PTR uDeviceID, UINT uMsg, DWORD_PTR hMidi, DWORD_PTR dwParam1, DWORD_PTR dwParam2) {
+	if (MMmid32Message != Dummy) return MMmid32Message(uDeviceID, uMsg, hMidi, dwParam1, dwParam2);
+	else return MMSYSERR_NOERROR;
+}
+
+MMRESULT WINAPI WINMM_mod32Message(UINT_PTR uDeviceID, UINT uMsg, DWORD_PTR hMidi, DWORD_PTR dwParam1, DWORD_PTR dwParam2) {
+	if (MMmod32Message != Dummy) return MMmod32Message(uDeviceID, uMsg, hMidi, dwParam1, dwParam2);
+	else return MMSYSERR_NOERROR;
+}
+
+MMRESULT WINAPI WINMM_mxd32Message(UINT_PTR uDeviceID, UINT uMsg, DWORD_PTR hMidi, DWORD_PTR dwParam1, DWORD_PTR dwParam2) {
+	if (MMmxd32Message != Dummy) return MMmxd32Message(uDeviceID, uMsg, hMidi, dwParam1, dwParam2);
+	else return MMSYSERR_NOERROR;
+}
+
+MMRESULT WINAPI WINMM_tid32Message(UINT_PTR uDeviceID, UINT uMsg, DWORD_PTR hMidi, DWORD_PTR dwParam1, DWORD_PTR dwParam2) {
+	if (MMtid32Message != Dummy) return MMtid32Message(uDeviceID, uMsg, hMidi, dwParam1, dwParam2);
+	else return MMSYSERR_NOERROR;
+}
+
+MMRESULT WINAPI WINMM_wid32Message(UINT_PTR uDeviceID, UINT uMsg, DWORD_PTR hMidi, DWORD_PTR dwParam1, DWORD_PTR dwParam2) {
+	if (MMwid32Message != Dummy) return MMwid32Message(uDeviceID, uMsg, hMidi, dwParam1, dwParam2);
+	else return MMSYSERR_NOERROR;
+}
+
+MMRESULT WINAPI WINMM_wod32Message(UINT_PTR uDeviceID, UINT uMsg, DWORD_PTR hMidi, DWORD_PTR dwParam1, DWORD_PTR dwParam2) {
+	if (MMwod32Message != Dummy) return MMwod32Message(uDeviceID, uMsg, hMidi, dwParam1, dwParam2);
+	else return MMSYSERR_NOERROR;
+}
+#endif
+
+BOOL IsOMRunningUnderWine() {
+	HMODULE hntdll = GetModuleHandle("ntdll");
+	if (!hntdll) return FALSE;
+
+	WGBI = (void*)GetProcAddress(hntdll, "wine_get_build_id");
+	return (WGBI != NULL) ? TRUE : FALSE;
+}
+
+BOOL InitializeWinMM() {
+	// Load WinMM
+	BOOL IOMRUW = IsOMRunningUnderWine();
+	wchar_t SystemDirectory[MAX_PATH];
+	GetSystemDirectoryW(SystemDirectory, MAX_PATH);
+	wcscat(SystemDirectory, L"\\winmm.dll");
+
+	OWINMM = LoadLibraryW(SystemDirectory);
+	if (!OWINMM) {
+		MessageBox(
+			NULL,
+			"An error has occured during the initialization of the Windows Multimedia Extensions API!\n\nPress OK to exit.",
+			"KDMAPI ERROR",
+			MB_ICONERROR | MB_OK | MB_SYSTEMMODAL
+		);
+
+		return FALSE;
+	}
+
+	if (IOMRUW) {
+		MMaux32Message = Dummy;
+		MMjoy32Message = Dummy;
+		MMmci32Message = Dummy;
+		MMmid32Message = Dummy;
+		MMmod32Message = Dummy;
+		MMmxd32Message = Dummy;
+		MMtid32Message = Dummy;
+		MMwid32Message = Dummy;
+		MMwod32Message = Dummy;
+
+		printf("Detected Wine.");
+	}
+
+	// LOAD EVERYTHING!
+	TCHAR ErrorBuf[1024];
+	for (int i = 0; i < sizeof(MMImports) / sizeof(MMImports[0]); i++)
+	{
+		if (*(MMImports[i].ptr) == Dummy) {
+			printf("Not present in Wine, continue...");
+			continue;
+		}
+
+		*(MMImports[i].ptr) = (void*)GetProcAddress(OWINMM, MMImports[i].name);
+
+		if (!*(MMImports[i].ptr)) {
+			sprintf_s(
+				ErrorBuf,
+				1024,
+				"An error has occured while loading \"%s\" from WinMM.\n\nFailed to load the Windows Multimedia Extensions API, press OK to exit.",
+				MMImports[i].name);
+
+			MessageBox(
+				NULL,
+				ErrorBuf,
+				"KDMAPI ERROR",
+				MB_ICONERROR | MB_OK | MB_SYSTEMMODAL
+			);
+			return FALSE;
+		}
+	}
+
+	TickStart = WINMM_timeGetTime();
+
+	return TRUE;
 }

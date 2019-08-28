@@ -9,6 +9,7 @@ EXPORTS
 	GetDriverModuleHandle			= WINMM_GetDriverModuleHandle
 	OpenDriver						= WINMM_OpenDriver
 	PlaySound						= WINMM_PlaySound
+	PlaySoundStub					= WINMM_PlaySoundA	@2	NONAME
 	PlaySoundA						= WINMM_PlaySoundA
 	PlaySoundW						= WINMM_PlaySoundW
 	PoweredByKeppy					= KDMAPI_poweredByKeppy
