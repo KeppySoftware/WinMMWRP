@@ -21,35 +21,35 @@ typedef long NTSTATUS;
 #define REQ_REV		0
 
 // KDMAPI version from library
-static DWORD DrvMajor = 0, DrvMinor = 0, DrvBuild = 0, DrvRevision = 0;
+DWORD DrvMajor = 0, DrvMinor = 0, DrvBuild = 0, DrvRevision = 0;
 
 // OM funcs
-static BOOL OMAlreadyInit = FALSE;																		// To check if OM has already been initialized
-static HMODULE OM = NULL;																				// OM lib
-static DWORD_PTR OMUser;																				// Dummy pointer, used for KDMAPI Output
-static HMIDI OMDummy = 0x10001;																			// Dummy pointer, used for KDMAPI Output
-static DWORD64(WINAPI*TGT64)() = 0;																		// timeGetTime64
-static BOOL(WINAPI*DS)(DWORD, DWORD, LPVOID, UINT) = 0;													// DriverSettings
-static VOID(WINAPI*SCE)(DWORD, DWORD, DWORD) = 0;														// SendCustomEvent
-static MMRESULT(WINAPI*SDD)(DWORD) = 0;																	// SendDirectData
-static MMRESULT(WINAPI*SDLD)(LPMIDIHDR) = 0;															// SendDirectLongData
-static MMRESULT(WINAPI*PLD)(LPMIDIHDR) = 0;																// PrepareLongData
-static MMRESULT(WINAPI*UPLD)(LPMIDIHDR) = 0;															// UnprepareLongData
-static MMRESULT(WINAPI*mM)(UINT, UINT, DWORD_PTR, DWORD_PTR, DWORD_PTR) = 0;							// modMessage
-static BOOL(WINAPI*RKDMAPIV)(LPDWORD, LPDWORD, LPDWORD, LPDWORD) = 0;									// ReturnKDMAPIVer
-static BOOL(WINAPI*IOMS)(VOID) = 0;																		// InitializeKDMAPIStream
-static BOOL(WINAPI*TOMS)(VOID) = 0;																		// TerminateKDMAPIStream
-static VOID(WINAPI*ROMS)(VOID) = 0;																		// ResetKDMAPIStream
-static BOOL(WINAPI*IKDMAPIA)(VOID) = 0;																	// IsKDMAPIAvailable
+BOOL OMAlreadyInit = FALSE;																		// To check if OM has already been initialized
+HMODULE OM = NULL;																				// OM lib
+DWORD_PTR OMUser;																				// Dummy pointer, used for KDMAPI Output
+HMIDI OMDummy = 0x10001;																			// Dummy pointer, used for KDMAPI Output
+DWORD64(WINAPI* TGT64)() = 0;																		// timeGetTime64
+BOOL(WINAPI* DS)(DWORD, DWORD, LPVOID, UINT) = 0;													// DriverSettings
+VOID(WINAPI* SCE)(DWORD, DWORD, DWORD) = 0;														// SendCustomEvent
+MMRESULT(WINAPI* SDD)(DWORD) = 0;																	// SendDirectData
+MMRESULT(WINAPI* SDLD)(LPMIDIHDR) = 0;															// SendDirectLongData
+MMRESULT(WINAPI* PLD)(LPMIDIHDR) = 0;																// PrepareLongData
+MMRESULT(WINAPI* UPLD)(LPMIDIHDR) = 0;															// UnprepareLongData
+MMRESULT(WINAPI* mM)(UINT, UINT, DWORD_PTR, DWORD_PTR, DWORD_PTR) = 0;							// modMessage
+BOOL(WINAPI* RKDMAPIV)(LPDWORD, LPDWORD, LPDWORD, LPDWORD) = 0;									// ReturnKDMAPIVer
+BOOL(WINAPI* IOMS)(VOID) = 0;																		// InitializeKDMAPIStream
+BOOL(WINAPI* TOMS)(VOID) = 0;																		// TerminateKDMAPIStream
+VOID(WINAPI* ROMS)(VOID) = 0;																		// ResetKDMAPIStream
+BOOL(WINAPI* IKDMAPIA)(VOID) = 0;																	// IsKDMAPIAvailable
 
 // WinNT Kernel funcs
-static HMODULE NTDLL = NULL;
-static ULONGLONG TickStart = 0;																			// For TGT64
-static NTSTATUS(NTAPI*NQST)(QWORD*) = 0;																// NtQuerySystemTime
+HMODULE NTDLL = NULL;
+ULONGLONG TickStart = 0;																			// For TGT64
+NTSTATUS(NTAPI* NQST)(QWORD*) = 0;																// NtQuerySystemTime
 
 // Callback, used for old apps that require one
-static DWORD_PTR WMMCI;
-static VOID(CALLBACK*WMMC)(HMIDIOUT, DWORD, DWORD_PTR, DWORD_PTR, DWORD_PTR) = 0;
+DWORD_PTR WMMCI;
+VOID(CALLBACK* WMMC)(HMIDIOUT, DWORD, DWORD_PTR, DWORD_PTR, DWORD_PTR) = 0;
 
 // Stock WinMM funcs
 #include "WinMM.h"
