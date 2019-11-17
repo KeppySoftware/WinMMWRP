@@ -1129,13 +1129,20 @@ BOOL IsOMRunningUnderWine() {
 }
 
 BOOL InitializeWinMM() {
-	// Load WinMM
 	BOOL IOMRUW = IsOMRunningUnderWine();
-	wchar_t SystemDirectory[MAX_PATH];
-	GetSystemDirectoryW(SystemDirectory, MAX_PATH);
-	wcscat(SystemDirectory, L"\\winmm.dll");
 
-	OWINMM = LoadLibraryW(SystemDirectory);
+	// Load WinMM from system directory if copy isn't found in the app's directory
+	if (INVALID_FILE_ATTRIBUTES == GetFileAttributes("owinmm.dll") && GetLastError() == ERROR_FILE_NOT_FOUND)
+	{
+		wchar_t SystemDirectory[MAX_PATH];
+		GetSystemDirectoryW(SystemDirectory, MAX_PATH);
+		wcscat(SystemDirectory, L"\\winmm.dll");
+
+		OWINMM = LoadLibraryW(SystemDirectory);
+	}
+	// Else load the custom DLL
+	else OWINMM = LoadLibraryW(L"owinmm.dll");
+
 	if (!OWINMM) {
 		MessageBox(
 			NULL,

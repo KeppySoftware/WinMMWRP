@@ -147,7 +147,7 @@ EXPORTS
 	timeEndPeriod					= WINMM_timeEndPeriod
 	timeGetDevCaps					= WINMM_timeGetDevCaps
 	timeGetSystemTime				= WINMM_timeGetSystemTime
-	timeGetTime						= KDMAPI_timeGetTime
+	timeGetTime						= FINAL_timeGetTime
 	timeGetTime64					= KDMAPI_timeGetTime64
 	timeKillEvent					= WINMM_timeKillEvent
 	timeSetEvent					= WINMM_timeSetEvent

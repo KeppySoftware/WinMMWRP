@@ -1,7 +1,7 @@
 LIBRARY	winmm.dll
 
 EXPORTS
-	timeGetTime						= KDMAPI_timeGetTime
+	timeGetTime						= FINAL_timeGetTime
 	CloseDriver						= WINMM_CloseDriver
 	DefDriverProc					= WINMM_DefDriverProc
 	DriverCallback					= WINMM_DriverCallback
