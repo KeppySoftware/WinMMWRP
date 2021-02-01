@@ -16,7 +16,7 @@ typedef long NTSTATUS;
 
 // Required KDMAPI version
 #define REQ_MAJOR	2
-#define REQ_MINOR	0
+#define REQ_MINOR	1
 #define REQ_BUILD	0
 #define REQ_REV		0
 
@@ -42,7 +42,7 @@ BOOL(WINAPI* IOMS)(VOID) = 0;																	// InitializeKDMAPIStream
 BOOL(WINAPI* TOMS)(VOID) = 0;																	// TerminateKDMAPIStream
 VOID(WINAPI* ROMS)(VOID) = 0;																	// ResetKDMAPIStream
 BOOL(WINAPI* IKDMAPIA)(VOID) = 0;																// IsKDMAPIAvailable
-VOID(WINAPI* ICF)(HMIDI, DWORD_PTR, DWORD_PTR, DWORD_PTR, DWORD, DWORD) = 0;					// InitializeCallbackFeatures
+VOID(WINAPI* ICF)(HMIDI, DWORD_PTR, DWORD_PTR, DWORD_PTR, DWORD) = 0;							// InitializeCallbackFeatures
 VOID(WINAPI* RCF)(DWORD, DWORD_PTR, DWORD_PTR) = 0;												// RunCallbackFunction
 
 // WinNT Kernel funcs
@@ -112,13 +112,13 @@ BOOL InitializeOMDirectAPI() {
 	GetSystemDirectoryW(OMDir, MAX_PATH);
 
 	// Append system directory to OMDir and NTDLLDir, with their respective targets
-	wcscat(OMDir, L"\\OmniMIDI\\OmniMIDI.dll");
+	wcscat(OMDir, L"\\OmniMIDI.dll");
 
-	// Load the default DLL from the app's directory
-	OM = LoadLibraryW(L"OmniMIDI.dll");
+	// Load the default DLL from the system directory
+	OM = LoadLibraryW(OMDir);
 	if (!OM) {
-		// Failed, try loading it from the system directory
-		OM = LoadLibraryW(OMDir);
+		// Failed, try loading it from the app's directory
+		OM = LoadLibraryW(L"OmniMIDI.dll");
 		if (!OM) {
 			// Failed, OmniMIDI is not available, exit the program
 			MessageBox(
@@ -338,7 +338,7 @@ MMRESULT WINAPI KDMAPI_midiOutOpen(LPHMIDIOUT lphmo, UINT uDeviceID, DWORD_PTR d
 
 		// Setup the Callback (If there's one) - NEEDED FOR VANBASCO!
 		// If dwflags is CALLBACK_EVENT, then skip, since it's not needed. (Java pls)
-		ICF((*lphmo), dwCallback, dwCallbackInstance, &OMUser, dwFlags, HIWORD((DWORD)dwFlags));
+		ICF((*lphmo), dwCallback, dwCallbackInstance, &OMUser, dwFlags);
 		RCF(MM_MOM_OPEN, 0, 0);
 
 		OMAlreadyInit = TRUE;
