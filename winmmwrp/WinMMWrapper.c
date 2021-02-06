@@ -18,7 +18,7 @@ typedef long NTSTATUS;
 #define REQ_MAJOR	2
 #define REQ_MINOR	1
 #define REQ_BUILD	0
-#define REQ_REV		0
+#define REQ_REV		69
 
 // KDMAPI version from library
 DWORD DrvMajor = 0, DrvMinor = 0, DrvBuild = 0, DrvRevision = 0;
@@ -42,7 +42,7 @@ BOOL(WINAPI* IOMS)(VOID) = 0;																	// InitializeKDMAPIStream
 BOOL(WINAPI* TOMS)(VOID) = 0;																	// TerminateKDMAPIStream
 VOID(WINAPI* ROMS)(VOID) = 0;																	// ResetKDMAPIStream
 BOOL(WINAPI* IKDMAPIA)(VOID) = 0;																// IsKDMAPIAvailable
-VOID(WINAPI* ICF)(HMIDI, DWORD_PTR, DWORD_PTR, DWORD_PTR, DWORD) = 0;							// InitializeCallbackFeatures
+BOOL(WINAPI* ICF)(HMIDI, DWORD_PTR, DWORD_PTR, DWORD_PTR, DWORD) = 0;							// InitializeCallbackFeatures
 VOID(WINAPI* RCF)(DWORD, DWORD_PTR, DWORD_PTR) = 0;												// RunCallbackFunction
 
 // WinNT Kernel funcs
@@ -162,8 +162,6 @@ BOOL InitializeOMDirectAPI() {
 
 		return FALSE;
 	}
-
-	OMUser = (DWORD_PTR*)malloc(sizeof(DWORD_PTR));
 
 	if (!NQST || !NT_SUCCESS(NQST(&TickStart))) {
 		OutputDebugStringW(L"Something went wrong while using NtQuerySystemTime. Falling back to stock timeGetTime...");
@@ -324,6 +322,14 @@ MMRESULT WINAPI KDMAPI_midiOutOpen(LPHMIDIOUT lphmo, UINT uDeviceID, DWORD_PTR d
 #endif
 
 	if (!OMAlreadyInit) {
+		// Setup the Callback (If there's one) - NEEDED FOR VANBASCO!
+		// If dwflags is CALLBACK_EVENT, then skip, since it's not needed. (Java pls)
+		if (!ICF((*lphmo), dwCallback, dwCallbackInstance, &OMUser, dwFlags))
+		{
+			MessageBox(NULL, "ICF failed!", "KDMAPI ERROR", MB_SYSTEMMODAL | MB_ICONERROR);
+			return MMSYSERR_INVALPARAM;
+		}
+		
 		// Close any stream, just to be safe
 		TOMS();
 
@@ -336,9 +342,6 @@ MMRESULT WINAPI KDMAPI_midiOutOpen(LPHMIDIOUT lphmo, UINT uDeviceID, DWORD_PTR d
 
 		DS(0xFFFFF, NULL, NULL, NULL);
 
-		// Setup the Callback (If there's one) - NEEDED FOR VANBASCO!
-		// If dwflags is CALLBACK_EVENT, then skip, since it's not needed. (Java pls)
-		ICF((*lphmo), dwCallback, dwCallbackInstance, &OMUser, dwFlags);
 		RCF(MM_MOM_OPEN, 0, 0);
 
 		OMAlreadyInit = TRUE;
@@ -489,6 +492,13 @@ MMRESULT WINAPI KDMAPI_midiStreamOpen(LPHMIDISTRM lphStream, LPUINT puDeviceID, 
 	}
 #endif
 	if (!OMAlreadyInit) {
+		// Setup the Callback
+		if (!ICF((*lphStream), dwCallback, dwCallbackInstance, &OMUser, fdwOpen | 0x00000002L))
+		{
+			MessageBox(NULL, "ICF failed!", "KDMAPI ERROR", MB_SYSTEMMODAL | MB_ICONERROR);
+			return MMSYSERR_INVALPARAM;
+		}
+
 		// Close any stream, just to be safe
 		TOMS();
 
@@ -501,8 +511,6 @@ MMRESULT WINAPI KDMAPI_midiStreamOpen(LPHMIDISTRM lphStream, LPUINT puDeviceID, 
 
 		DS(0xFFFFF, NULL, NULL, NULL);
 
-		// Setup the Callback
-		ICF((*lphStream), dwCallback, dwCallbackInstance, OMUser, fdwOpen, 0x00000002L);
 		RCF(MM_MOM_OPEN, 0, 0);
 
 		OMAlreadyInit = TRUE;
