@@ -1,7 +1,6 @@
 LIBRARY	winmm.dll
 
 EXPORTS
-	timeGetTime						= FINAL_timeGetTime
 	CloseDriver						= WINMM_CloseDriver
 	DefDriverProc					= WINMM_DefDriverProc
 	DriverCallback					= WINMM_DriverCallback
@@ -140,7 +139,7 @@ EXPORTS
 	timeEndPeriod					= WINMM_timeEndPeriod
 	timeGetDevCaps					= WINMM_timeGetDevCaps
 	timeGetSystemTime				= WINMM_timeGetSystemTime
-	timeGetTime64					= KDMAPI_timeGetTime64
+	timeGetTime						= FINAL_timeGetTime
 	timeKillEvent					= WINMM_timeKillEvent
 	timeSetEvent					= WINMM_timeSetEvent
 	waveInAddBuffer					= WINMM_waveInAddBuffer

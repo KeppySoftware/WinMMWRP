@@ -1,5 +1,7 @@
 #include <Windows.h>
-#include <stdio.h> 
+#include <string.h>
+#include <stdio.h>
+#include <locale.h>
 #include "mmddk.h"
 #include <time.h>
 
@@ -53,12 +55,6 @@ NTSTATUS(NTAPI* NQST)(QWORD*) = 0;																// NtQuerySystemTime
 // Stock WinMM funcs
 #include "WinMM.h"
 
-DWORD WINAPI CustomTGT() {
-	ULONGLONG CurrentTime;
-	NQST(&CurrentTime);
-	return (DWORD)((CurrentTime - TickStart) * (1.0 / 10000.0));
-}
-
 BOOL CheckIfKDMAPIIsUpToDate() {
 	BOOL GoAhead = FALSE;
 	RKDMAPIV(&DrvMajor, &DrvMinor, &DrvBuild, &DrvRevision);
@@ -103,6 +99,9 @@ BOOL CheckIfKDMAPIIsUpToDate() {
 }
 
 BOOL InitializeOMDirectAPI() {
+	HKEY RegKey;
+	BOOL WinMMLegacyMode = FALSE;
+	DWORD dwType = REG_DWORD, dwSize = sizeof(DWORD);
 	wchar_t OMDir[MAX_PATH];
 
 	// Clear memory
@@ -163,11 +162,27 @@ BOOL InitializeOMDirectAPI() {
 		return FALSE;
 	}
 
-	if (!NQST || !NT_SUCCESS(NQST(&TickStart))) {
-		OutputDebugStringW(L"Something went wrong while using NtQuerySystemTime. Falling back to stock timeGetTime...");
+	LSTATUS ROKE = RegOpenKeyExW(HKEY_CURRENT_USER, L"Software\\OmniMIDI\\Configuration", 0, KEY_READ, &RegKey);
+	if (!ROKE) {
+		RegQueryValueExW(RegKey, L"StockWinMM", NULL, &dwType, (LPBYTE)&WinMMLegacyMode, &dwSize);
+	}
+	RegCloseKey(&RegKey);
+
+	if (WinMMLegacyMode == TRUE) {
+		OutputDebugStringW(L"The user requested the legacy WinMM timeGetTime implementation.");
 		TGT = WINMM_timeGetTime;
 	}
-	else TGT = CustomTGT;
+	else {
+		OutputDebugStringW(L"Checking NtQuerySystemTime...");
+
+		if (!NQST || !NT_SUCCESS(NQST(&TickStart))) {
+			OutputDebugStringW(L"Something went wrong while using NtQuerySystemTime. Falling back to stock timeGetTime...");
+			TGT = WINMM_timeGetTime;
+		}
+		else TGT = TGT64;
+
+		OutputDebugStringW(L"NtQuerySystemTime set...");
+	}
 
 	if (CheckIfKDMAPIIsUpToDate()) {
 		IKDMAPIA();
@@ -359,6 +374,9 @@ MMRESULT WINAPI KDMAPI_midiOutClose(HMIDIOUT hMidiOut) {
 	// Close OM
 	if (OMAlreadyInit) {
 		if (!TOMS()) return MMSYSERR_NOMEM;
+
+		DS(0xFFFFE, NULL, NULL, NULL);
+
 		RCF(MM_MOM_CLOSE, 0, 0);
 
 		hMidiOut = (HMIDI)0;
@@ -587,10 +605,6 @@ MMRESULT WINAPI KDMAPI_midiStreamPosition(HMIDISTRM hStream, LPMMTIME pmmt, UINT
 
 VOID WINAPI KDMAPI_poweredByKeppy() {
 	MessageBox(NULL, "With love by Keppy.", "Windows Multimedia Wrapper", MB_OK | MB_ICONINFORMATION | MB_SYSTEMMODAL);
-}
-
-DWORD64 WINAPI KDMAPI_timeGetTime64() {
-	return TGT64();
 }
 
 DWORD WINAPI FINAL_timeGetTime() {

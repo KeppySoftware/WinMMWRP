@@ -148,7 +148,6 @@ EXPORTS
 	timeGetDevCaps					= WINMM_timeGetDevCaps
 	timeGetSystemTime				= WINMM_timeGetSystemTime
 	timeGetTime						= FINAL_timeGetTime
-	timeGetTime64					= KDMAPI_timeGetTime64
 	timeKillEvent					= WINMM_timeKillEvent
 	timeSetEvent					= WINMM_timeSetEvent
 	waveInAddBuffer					= WINMM_waveInAddBuffer

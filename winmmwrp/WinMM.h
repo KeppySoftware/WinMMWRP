@@ -2,6 +2,7 @@
 
 // WinMM funcs, just replace MM with "midiOut" to get the real version
 HMODULE OWINMM = NULL;
+HMODULE KERNEL32 = NULL;
 DWORD(WINAPI* INtimeGetTime)() = 0;
 
 // Wine check
@@ -1074,38 +1075,38 @@ MMRESULT WINAPI WINMM_timeEndPeriod(UINT uPeriod) {
 }
 
 #ifdef _M_IX86
-MMRESULT WINAPI WINMM_aux32Message(UINT_PTR uDeviceID, UINT uMsg, DWORD_PTR hMidi, DWORD_PTR dwParam1, DWORD_PTR dwParam2) {
-	if (MMaux32Message != Dummy) return MMaux32Message(uDeviceID, uMsg, hMidi, dwParam1, dwParam2);
+MMRESULT WINAPI WINMM_aux32Message(UINT_PTR uDeviceID, UINT uMsg, DWORD_PTR Handle, DWORD_PTR dwParam1, DWORD_PTR dwParam2) {
+	if (MMaux32Message != Dummy) return MMaux32Message(uDeviceID, uMsg, Handle, dwParam1, dwParam2);
 	else return MMSYSERR_NOERROR;
 }
 
-MMRESULT WINAPI WINMM_joy32Message(UINT_PTR uDeviceID, UINT uMsg, DWORD_PTR hMidi, DWORD_PTR dwParam1, DWORD_PTR dwParam2) {
-	if (MMjoy32Message != Dummy) return MMjoy32Message(uDeviceID, uMsg, hMidi, dwParam1, dwParam2);
+MMRESULT WINAPI WINMM_joy32Message(UINT_PTR uDeviceID, UINT uMsg, DWORD_PTR Handle, DWORD_PTR dwParam1, DWORD_PTR dwParam2) {
+	if (MMjoy32Message != Dummy) return MMjoy32Message(uDeviceID, uMsg, Handle, dwParam1, dwParam2);
 	else return MMSYSERR_NOERROR;
 }
 
-MMRESULT WINAPI WINMM_mci32Message(UINT_PTR uDeviceID, UINT uMsg, DWORD_PTR hMidi, DWORD_PTR dwParam1, DWORD_PTR dwParam2) {
-	if (MMmci32Message != Dummy) return MMmci32Message(uDeviceID, uMsg, hMidi, dwParam1, dwParam2);
+MMRESULT WINAPI WINMM_mci32Message(UINT_PTR uDeviceID, UINT uMsg, DWORD_PTR Handle, DWORD_PTR dwParam1, DWORD_PTR dwParam2) {
+	if (MMmci32Message != Dummy) return MMmci32Message(uDeviceID, uMsg, Handle, dwParam1, dwParam2);
 	else return MMSYSERR_NOERROR;
 }
 
-MMRESULT WINAPI WINMM_mid32Message(UINT_PTR uDeviceID, UINT uMsg, DWORD_PTR hMidi, DWORD_PTR dwParam1, DWORD_PTR dwParam2) {
-	if (MMmid32Message != Dummy) return MMmid32Message(uDeviceID, uMsg, hMidi, dwParam1, dwParam2);
+MMRESULT WINAPI WINMM_mid32Message(UINT_PTR uDeviceID, UINT uMsg, DWORD_PTR Handle, DWORD_PTR dwParam1, DWORD_PTR dwParam2) {
+	if (MMmid32Message != Dummy) return MMmid32Message(uDeviceID, uMsg, Handle, dwParam1, dwParam2);
 	else return MMSYSERR_NOERROR;
 }
 
-MMRESULT WINAPI WINMM_mod32Message(UINT_PTR uDeviceID, UINT uMsg, DWORD_PTR hMidi, DWORD_PTR dwParam1, DWORD_PTR dwParam2) {
-	if (MMmod32Message != Dummy) return MMmod32Message(uDeviceID, uMsg, hMidi, dwParam1, dwParam2);
+MMRESULT WINAPI WINMM_mod32Message(UINT_PTR uDeviceID, UINT uMsg, DWORD_PTR Handle, DWORD_PTR dwParam1, DWORD_PTR dwParam2) {
+	if (MMmod32Message != Dummy) return MMmod32Message(uDeviceID, uMsg, Handle, dwParam1, dwParam2);
 	else return MMSYSERR_NOERROR;
 }
 
-MMRESULT WINAPI WINMM_mxd32Message(UINT_PTR uDeviceID, UINT uMsg, DWORD_PTR hMidi, DWORD_PTR dwParam1, DWORD_PTR dwParam2) {
-	if (MMmxd32Message != Dummy) return MMmxd32Message(uDeviceID, uMsg, hMidi, dwParam1, dwParam2);
+MMRESULT WINAPI WINMM_mxd32Message(UINT_PTR uDeviceID, UINT uMsg, DWORD_PTR Handle, DWORD_PTR dwParam1, DWORD_PTR dwParam2) {
+	if (MMmxd32Message != Dummy) return MMmxd32Message(uDeviceID, uMsg, Handle, dwParam1, dwParam2);
 	else return MMSYSERR_NOERROR;
 }
 
-MMRESULT WINAPI WINMM_tid32Message(UINT_PTR uDeviceID, UINT uMsg, DWORD_PTR hMidi, DWORD_PTR dwParam1, DWORD_PTR dwParam2) {
-	if (MMtid32Message != Dummy) return MMtid32Message(uDeviceID, uMsg, hMidi, dwParam1, dwParam2);
+MMRESULT WINAPI WINMM_tid32Message(UINT_PTR uDeviceID, UINT uMsg, DWORD_PTR Handle, DWORD_PTR dwParam1, DWORD_PTR dwParam2) {
+	if (MMtid32Message != Dummy) return MMtid32Message(uDeviceID, uMsg, Handle, dwParam1, dwParam2);
 	else return MMSYSERR_NOERROR;
 }
 
@@ -1128,30 +1129,65 @@ BOOL IsOMRunningUnderWine() {
 	return (WGBI != NULL) ? TRUE : FALSE;
 }
 
-BOOL InitializeWinMM() {
-	BOOL IOMRUW = IsOMRunningUnderWine();
+BOOL ImportFromWinMM(int i, TCHAR* ErrorBuf) {
+	*(MMImports[i].ptr) = (void*)GetProcAddress(OWINMM, MMImports[i].name);
 
-	// Load WinMM from system directory if copy isn't found in the app's directory
-	if (INVALID_FILE_ATTRIBUTES == GetFileAttributes("owinmm.dll") && GetLastError() == ERROR_FILE_NOT_FOUND)
-	{
-		wchar_t SystemDirectory[MAX_PATH];
-		GetSystemDirectoryW(SystemDirectory, MAX_PATH);
-		wcscat(SystemDirectory, L"\\winmm.dll");
+	if (!*(MMImports[i].ptr)) {
+		sprintf_s(
+			ErrorBuf,
+			1024,
+			"An error has occured while loading \"%s\" from WinMM.\n\nFailed to load the Windows Multimedia Extensions API, press OK to exit.",
+			MMImports[i].name);
 
-		OWINMM = LoadLibraryW(SystemDirectory);
-	}
-	// Else load the custom DLL
-	else OWINMM = LoadLibraryW(L"owinmm.dll");
-
-	if (!OWINMM) {
 		MessageBox(
 			NULL,
-			"An error has occured during the initialization of the Windows Multimedia Extensions API!\n\nPress OK to exit.",
+			ErrorBuf,
 			"KDMAPI ERROR",
 			MB_ICONERROR | MB_OK | MB_SYSTEMMODAL
 		);
-
 		return FALSE;
+	}
+}
+
+BOOL InitializeWinMM() {
+	BOOL IOMRUW = IsOMRunningUnderWine();
+
+	if (!OWINMM) {
+		// Load WinMM from system directory if copy isn't found in the app's directory
+		if (INVALID_FILE_ATTRIBUTES == GetFileAttributes("owinmm.dll") && GetLastError() == ERROR_FILE_NOT_FOUND)
+		{
+			wchar_t SystemDirectory[MAX_PATH];
+			GetSystemDirectoryW(SystemDirectory, MAX_PATH);
+			wcscat(SystemDirectory, L"\\winmm.dll");
+
+			OWINMM = LoadLibraryW(SystemDirectory);
+		}
+		// Else load the custom DLL
+		else OWINMM = LoadLibraryW(L"owinmm.dll");
+
+		KERNEL32 = GetModuleHandleW(L"kernel32");
+
+		if (!OWINMM) {
+			MessageBox(
+				NULL,
+				"An error has occured during the initialization of the Windows Multimedia Extensions API!\n\nPress OK to exit.",
+				"KDMAPI ERROR",
+				MB_ICONERROR | MB_OK | MB_SYSTEMMODAL
+			);
+
+			return FALSE;
+		}
+
+		if (!KERNEL32) {
+			MessageBox(
+				NULL,
+				"The patch was unable to locate KERNEL32.DLL!\n\nPress OK to exit.",
+				"KDMAPI ERROR",
+				MB_ICONERROR | MB_OK | MB_SYSTEMMODAL
+			);
+
+			return FALSE;
+		}
 	}
 
 #ifdef _M_IX86
@@ -1169,33 +1205,29 @@ BOOL InitializeWinMM() {
 		printf("Detected Wine.");
 	}
 #endif
+	TCHAR ErrorBuf[1024];
 
 	// LOAD EVERYTHING!
-	TCHAR ErrorBuf[1024];
 	for (int i = 0; i < sizeof(MMImports) / sizeof(MMImports[0]); i++)
 	{
 		if (*(MMImports[i].ptr) == Dummy) {
-			printf("Not present in Wine, continue...");
+			OutputDebugString(MMImports[i].name);
+			OutputDebugString("Not present in Wine, continue...");
 			continue;
 		}
 
-		*(MMImports[i].ptr) = (void*)GetProcAddress(OWINMM, MMImports[i].name);
+		if (!_stricmp(MMImports[i].name, "timeBeginPeriod") ||
+			!_stricmp(MMImports[i].name, "timeEndPeriod") ||
+			!_stricmp(MMImports[i].name, "timeGetDevCaps") ||
+			!_stricmp(MMImports[i].name, "timeGetSystemTime") ||
+			!_stricmp(MMImports[i].name, "timeGetTime"))
+		{
+			*(MMImports[i].ptr) = (void*)GetProcAddress(KERNEL32, MMImports[i].name);
 
-		if (!*(MMImports[i].ptr)) {
-			sprintf_s(
-				ErrorBuf,
-				1024,
-				"An error has occured while loading \"%s\" from WinMM.\n\nFailed to load the Windows Multimedia Extensions API, press OK to exit.",
-				MMImports[i].name);
-
-			MessageBox(
-				NULL,
-				ErrorBuf,
-				"KDMAPI ERROR",
-				MB_ICONERROR | MB_OK | MB_SYSTEMMODAL
-			);
-			return FALSE;
+			if (!*(MMImports[i].ptr))
+				ImportFromWinMM(i, ErrorBuf);
 		}
+		else ImportFromWinMM(i, ErrorBuf);
 	}
 
 	TickStart = WINMM_timeGetTime();
