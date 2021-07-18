@@ -14,6 +14,9 @@
     <ClCompile Include="WinMMWrapper.c">
       <Filter>File di origine</Filter>
     </ClCompile>
+    <ClCompile Include="WinMMWRPSHK.c">
+      <Filter>File di origine</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="Resource.rc">

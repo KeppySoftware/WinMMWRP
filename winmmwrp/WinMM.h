@@ -1043,11 +1043,10 @@ MMRESULT WINAPI WINMM_waveInStop(HWAVEIN hw) {
 
 UINT WINAPI WINMM_waveInGetNumDevs() {
 	return MMwaveInGetNumDevs();
-
 }
 
 DWORD WINAPI WINMM_timeGetTime() {
-	return MMtimeGetTime();
+	return TickStart + (DWORD)((MMtimeGetTime() - TickStart) * SpeedHack);
 }
 
 MMRESULT WINAPI WINMM_timeGetDevCaps(LPTIMECAPS ptc, UINT cbtc) {
@@ -1072,6 +1071,10 @@ MMRESULT WINAPI WINMM_timeBeginPeriod(UINT uPeriod) {
 
 MMRESULT WINAPI WINMM_timeEndPeriod(UINT uPeriod) {
 	return MMtimeEndPeriod(uPeriod);
+}
+
+HMODULE WINAPI WINMM_GetOWINMM() {
+	return OWINMM;
 }
 
 #ifdef _M_IX86
@@ -1136,7 +1139,7 @@ BOOL ImportFromWinMM(int i, TCHAR* ErrorBuf) {
 		sprintf_s(
 			ErrorBuf,
 			1024,
-			"An error has occured while loading \"%s\" from WinMM.\n\nFailed to load the Windows Multimedia Extensions API, press OK to exit.",
+			"An error has occured while loading \"%s\" from the Windows Multimedia Extension API library.\n\nFailed to load the required functions, press OK to exit.",
 			MMImports[i].name);
 
 		MessageBox(
@@ -1147,6 +1150,22 @@ BOOL ImportFromWinMM(int i, TCHAR* ErrorBuf) {
 		);
 		return FALSE;
 	}
+}
+
+void GetSpeedHack() {
+	char Potato[64] = { 0 };
+
+	HKEY RegKey;
+	QWORD TSH = 100000000;
+	DWORD dwType = REG_DWORD, dwSize = sizeof(DWORD);
+
+	LSTATUS ROKE = RegOpenKeyExW(HKEY_CURRENT_USER, L"Software\\OmniMIDI\\Configuration", 0, KEY_READ, &RegKey);
+	if (!ROKE) {
+		RegQueryValueExW(RegKey, L"WinMMSpeed", NULL, &dwType, (LPBYTE)&TSH, &dwSize);
+		SpeedHack = ((double)TSH / 100000000.0);
+		TickStart = MMtimeGetTime();
+	}
+	RegCloseKey(&RegKey);
 }
 
 BOOL InitializeWinMM() {
@@ -1170,7 +1189,7 @@ BOOL InitializeWinMM() {
 		if (!OWINMM) {
 			MessageBox(
 				NULL,
-				"An error has occured during the initialization of the Windows Multimedia Extensions API!\n\nPress OK to exit.",
+				"The wrapper was unable to load WINMM.DLL!\nUnable to initialize the Windows Multimedia Extension API.\n\nPress OK to exit.",
 				"KDMAPI ERROR",
 				MB_ICONERROR | MB_OK | MB_SYSTEMMODAL
 			);
@@ -1181,7 +1200,7 @@ BOOL InitializeWinMM() {
 		if (!KERNEL32) {
 			MessageBox(
 				NULL,
-				"The patch was unable to locate KERNEL32.DLL!\n\nPress OK to exit.",
+				"The wrapper was unable to locate KERNEL32.DLL!\nIs this even Windows?\n\nPress OK to exit.",
 				"KDMAPI ERROR",
 				MB_ICONERROR | MB_OK | MB_SYSTEMMODAL
 			);
@@ -1229,8 +1248,6 @@ BOOL InitializeWinMM() {
 		}
 		else ImportFromWinMM(i, ErrorBuf);
 	}
-
-	TickStart = WINMM_timeGetTime();
 
 	return TRUE;
 }

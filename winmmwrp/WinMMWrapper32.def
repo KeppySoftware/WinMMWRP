@@ -1,6 +1,7 @@
 LIBRARY	winmm.dll
 
 EXPORTS
+	GetOWINMM						= WINMM_GetOWINMM
 	CloseDriver						= WINMM_CloseDriver
 	DefDriverProc					= WINMM_DefDriverProc
 	DriverCallback					= WINMM_DriverCallback

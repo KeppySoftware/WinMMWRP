@@ -17,10 +17,10 @@ typedef unsigned __int64 QWORD;
 typedef long NTSTATUS;
 
 // Required KDMAPI version
-#define REQ_MAJOR	2
-#define REQ_MINOR	1
+#define REQ_MAJOR	3
+#define REQ_MINOR	0
 #define REQ_BUILD	0
-#define REQ_REV		69
+#define REQ_REV		0
 
 // KDMAPI version from library
 DWORD DrvMajor = 0, DrvMinor = 0, DrvBuild = 0, DrvRevision = 0;
@@ -49,7 +49,9 @@ VOID(WINAPI* RCF)(DWORD, DWORD_PTR, DWORD_PTR) = 0;												// RunCallbackFun
 
 // WinNT Kernel funcs
 HMODULE NTDLL = NULL;
-ULONGLONG TickStart = 0;																		// For TGT64
+DOUBLE SpeedHack = 1.0;																			// TGT speedhack
+DWORD TickStart = 0;																			// For TGT
+QWORD UTickStart = 0;																			// For TGT64
 NTSTATUS(NTAPI* NQST)(QWORD*) = 0;																// NtQuerySystemTime
 
 // Stock WinMM funcs
@@ -171,6 +173,7 @@ BOOL InitializeOMDirectAPI() {
 	if (WinMMLegacyMode == TRUE) {
 		OutputDebugStringW(L"The user requested the legacy WinMM timeGetTime implementation.");
 		TGT = WINMM_timeGetTime;
+		GetSpeedHack();
 	}
 	else {
 		OutputDebugStringW(L"Checking NtQuerySystemTime...");
@@ -178,10 +181,12 @@ BOOL InitializeOMDirectAPI() {
 		if (!NQST || !NT_SUCCESS(NQST(&TickStart))) {
 			OutputDebugStringW(L"Something went wrong while using NtQuerySystemTime. Falling back to stock timeGetTime...");
 			TGT = WINMM_timeGetTime;
+			GetSpeedHack();
 		}
-		else TGT = TGT64;
-
-		OutputDebugStringW(L"NtQuerySystemTime set...");
+		else {
+			TGT = TGT64;
+			OutputDebugStringW(L"NtQuerySystemTime set...");
+		}
 	}
 
 	if (CheckIfKDMAPIIsUpToDate()) {
@@ -258,17 +263,15 @@ MMRESULT WINAPI KDMAPI_midiOutGetDevCapsW(UINT_PTR uDeviceID, LPMIDIOUTCAPSW lpC
 	myCapsW.wMid = myCapsWTMP.wMid;
 	myCapsW.wPid = myCapsWTMP.wPid;
 
-#ifdef _DAWRELEASE
 	wcsncpy(myCapsW.szPname, L"Keppy's Direct MIDI API", MAXPNAMELEN);
-#else
-	wcsncpy(myCapsW.szPname, myCapsWTMP.szPname, MAXPNAMELEN);
-#endif
 
 	myCapsW.wVoices = myCapsWTMP.wVoices;
 	myCapsW.wNotes = myCapsWTMP.wNotes;
 	myCapsW.wTechnology = myCapsWTMP.wTechnology;
 	myCapsW.wChannelMask = myCapsWTMP.wChannelMask;
-	myCapsW.dwSupport = myCapsWTMP.dwSupport;
+
+	// Add MIDICAPS_STREAM, since we won't be able to let WinMM handle the stream functions
+	myCapsW.dwSupport = myCapsWTMP.dwSupport | MIDICAPS_STREAM;
 
 	// Copy values to pointer, and return 0
 	memcpy(lpCaps, &myCapsW, min(uSize, sizeof(myCapsW)));
@@ -316,6 +319,8 @@ MMRESULT WINAPI KDMAPI_midiOutShortMsg(HMIDIOUT hMidiOut, DWORD dwMsg) {
 }
 
 MMRESULT WINAPI KDMAPI_midiOutOpen(LPHMIDIOUT lphmo, UINT uDeviceID, DWORD_PTR dwCallback, DWORD_PTR dwCallbackInstance, DWORD dwFlags) {
+	GetSpeedHack();
+
 #ifdef _DAWRELEASE
 	// If above this device ID, return an error
 	if (uDeviceID > 0xFFFFFFFE) return MMSYSERR_BADDEVICEID;
@@ -368,6 +373,8 @@ MMRESULT WINAPI KDMAPI_midiOutOpen(LPHMIDIOUT lphmo, UINT uDeviceID, DWORD_PTR d
 }
 
 MMRESULT WINAPI KDMAPI_midiOutClose(HMIDIOUT hMidiOut) {
+	GetSpeedHack();
+
 #ifdef _DAWRELEASE
 	if (hMidiOut != OMDummy) return MMmidiOutClose(hMidiOut);
 #endif
@@ -487,7 +494,7 @@ MMRESULT WINAPI KDMAPI_midiOutGetID(HMIDIOUT hMidiOut, LPUINT puDeviceID) {
 
 UINT WINAPI KDMAPI_mmsystemGetVersion(void) {
 	// Dummy, not needed
-	return 0x0502U;
+	return 0x0600U;
 }
 
 MMRESULT WINAPI KDMAPI_midiStreamOpen(LPHMIDISTRM lphStream, LPUINT puDeviceID, DWORD cMidi, DWORD_PTR dwCallback, DWORD_PTR dwCallbackInstance, DWORD fdwOpen) {
