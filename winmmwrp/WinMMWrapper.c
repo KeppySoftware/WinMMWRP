@@ -17,7 +17,7 @@ typedef unsigned __int64 QWORD;
 typedef long NTSTATUS;
 
 // Required KDMAPI version
-#define REQ_MAJOR	3
+#define REQ_MAJOR	4
 #define REQ_MINOR	0
 #define REQ_BUILD	0
 #define REQ_REV		0
@@ -35,9 +35,9 @@ DWORD64(WINAPI* TGT64)() = 0;																	// timeGetTime64
 BOOL(WINAPI* DS)(DWORD, DWORD, LPVOID, UINT) = 0;												// DriverSettings
 VOID(WINAPI* SCE)(DWORD, DWORD, DWORD) = 0;														// SendCustomEvent
 MMRESULT(WINAPI* SDD)(DWORD) = 0;																// SendDirectData
-MMRESULT(WINAPI* SDLD)(LPMIDIHDR) = 0;															// SendDirectLongData
-MMRESULT(WINAPI* PLD)(LPMIDIHDR) = 0;															// PrepareLongData
-MMRESULT(WINAPI* UPLD)(LPMIDIHDR) = 0;															// UnprepareLongData
+MMRESULT(WINAPI* SDLD)(LPMIDIHDR, UINT) = 0;													// SendDirectLongData
+MMRESULT(WINAPI* PLD)(LPMIDIHDR, UINT) = 0;														// PrepareLongData
+MMRESULT(WINAPI* UPLD)(LPMIDIHDR, UINT) = 0;													// UnprepareLongData
 MMRESULT(WINAPI* mM)(UINT, UINT, DWORD_PTR, DWORD_PTR, DWORD_PTR) = 0;							// modMessage
 BOOL(WINAPI* RKDMAPIV)(LPDWORD, LPDWORD, LPDWORD, LPDWORD) = 0;									// ReturnKDMAPIVer
 BOOL(WINAPI* IOMS)(VOID) = 0;																	// InitializeKDMAPIStream
@@ -61,22 +61,9 @@ BOOL CheckIfKDMAPIIsUpToDate() {
 	BOOL GoAhead = FALSE;
 	RKDMAPIV(&DrvMajor, &DrvMinor, &DrvBuild, &DrvRevision);
 
-	if (REQ_MAJOR <= DrvMajor) {
-		if (REQ_MAJOR < DrvMajor) GoAhead = TRUE;
-		else {
-			if (REQ_MINOR <= DrvMinor) {
-				if (REQ_MINOR < DrvMinor) GoAhead = TRUE;
-				else {
-					if (REQ_BUILD <= DrvBuild) {
-						if (REQ_BUILD < DrvBuild) GoAhead = TRUE;
-						else {
-							if (REQ_REV <= DrvRevision) GoAhead = TRUE;
-						}
-					}
-				}
-			}
-		}
-	}
+	// WinMMWRP and KDMAPI **MUST** match
+	if (REQ_MAJOR == DrvMajor && REQ_MINOR == DrvMinor && REQ_BUILD <= DrvBuild && REQ_REV <= DrvRevision)
+		GoAhead = TRUE;
 
 	if (!GoAhead) {
 		TCHAR ErrorBuf[1024];
@@ -84,7 +71,7 @@ BOOL CheckIfKDMAPIIsUpToDate() {
 		sprintf_s(
 			ErrorBuf,
 			1024,
-			"This patch requires KDMAPI v%d.%d.%d.%d, but OmniMIDI is reporting KDMAPI v%d.%d.%d.%d.\nThis patch won't work with the current version of OmniMIDI installed, please update it.\n\nPress OK to quit.",
+			"This patch is meant for KDMAPI v%d.%d.%d.%d, but OmniMIDI is reporting KDMAPI v%d.%d.%d.%d.\nThis patch won't work with the current version of OmniMIDI installed, please update it.\n\nPress OK to quit.",
 			REQ_MAJOR, REQ_MINOR, REQ_BUILD, REQ_REV, DrvMajor, DrvMinor, DrvBuild, DrvRevision);
 
 		MessageBox(
@@ -406,14 +393,14 @@ MMRESULT WINAPI KDMAPI_midiOutPrepareHeader(HMIDIOUT hMidiOut, MIDIHDR* lpMidiOu
 #ifdef _DAWRELEASE
 	if (hMidiOut != OMDummy) return MMmidiOutPrepareHeader(hMidiOut, lpMidiOutHdr, uSize);
 #endif
-	return PLD(lpMidiOutHdr);
+	return PLD(lpMidiOutHdr, uSize);
 }
 
 MMRESULT WINAPI KDMAPI_midiOutUnprepareHeader(HMIDIOUT hMidiOut, MIDIHDR* lpMidiOutHdr, UINT uSize) {
 #ifdef _DAWRELEASE
 	if (hMidiOut != OMDummy) return MMmidiOutUnprepareHeader(hMidiOut, lpMidiOutHdr, uSize);
 #endif
-	return UPLD(lpMidiOutHdr);
+	return UPLD(lpMidiOutHdr, uSize);
 }
 
 MMRESULT WINAPI KDMAPI_midiOutLongMsg(HMIDIOUT hMidiOut, MIDIHDR* lpMidiOutHdr, UINT uSize) {
@@ -421,10 +408,10 @@ MMRESULT WINAPI KDMAPI_midiOutLongMsg(HMIDIOUT hMidiOut, MIDIHDR* lpMidiOutHdr, 
 	if (hMidiOut != OMDummy) return MMmidiOutLongMsg(hMidiOut, lpMidiOutHdr, uSize);
 #endif
 	// Forward the buffer to KDMAPI
-	MMRESULT Ret = SDLD(lpMidiOutHdr);
+	MMRESULT Ret = SDLD(lpMidiOutHdr, uSize);
 
 	// Inform the app that the driver successfully received the long message (Required for vanBasco to work), and return the MMRESULT
-	RCF(MM_MOM_DONE, lpMidiOutHdr, lpMidiOutHdr->dwBufferLength);
+	RCF(MM_MOM_DONE, hMidiOut, lpMidiOutHdr);
 
 	return Ret;
 }
@@ -536,7 +523,7 @@ MMRESULT WINAPI KDMAPI_midiStreamOpen(LPHMIDISTRM lphStream, LPUINT puDeviceID, 
 
 		DS(0xFFFFF, NULL, NULL, NULL);
 
-		RCF(MM_MOM_OPEN, 0, 0);
+		RCF(MM_MOM_OPEN, *lphStream, 0);
 
 		OMAlreadyInit = TRUE;
 		return MMSYSERR_NOERROR;
@@ -553,7 +540,7 @@ MMRESULT WINAPI KDMAPI_midiStreamClose(HMIDISTRM hStream) {
 	// Terminate CookedPlayer, free up hStream and return 0
 	if (OMAlreadyInit) {
 		if (TOMS())
-			RCF(MM_MOM_CLOSE, 0, 0);
+			RCF(MM_MOM_CLOSE, hStream, 0);
 
 		OMAlreadyInit = FALSE;
 		return MMSYSERR_NOERROR;
