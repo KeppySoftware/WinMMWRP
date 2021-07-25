@@ -1169,6 +1169,9 @@ void GetSpeedHack() {
 }
 
 BOOL InitializeWinMM() {
+	if (OWINMM)
+		return TRUE;
+
 	BOOL IOMRUW = IsOMRunningUnderWine();
 
 	if (!OWINMM) {

@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <locale.h>
 #include "mmddk.h"
+#include "OmniMIDI.h"
 #include <time.h>
 
 #define KDMAPI_UDID			0		// KDMAPI default uDeviceID
@@ -30,20 +31,7 @@ BOOL OMAlreadyInit = FALSE;																		// To check if OM has already been 
 HMODULE OM = NULL;																				// OM lib
 DWORD_PTR OMUser;																				// Dummy pointer, used for KDMAPI Output
 HMIDI OMDummy = 0x10001;																		// Dummy pointer, used for KDMAPI Output
-DWORD(WINAPI* TGT)() = 0;																		// timeGetTime
-DWORD64(WINAPI* TGT64)() = 0;																	// timeGetTime64
-BOOL(WINAPI* DS)(DWORD, DWORD, LPVOID, UINT) = 0;												// DriverSettings
-VOID(WINAPI* SCE)(DWORD, DWORD, DWORD) = 0;														// SendCustomEvent
-MMRESULT(WINAPI* SDD)(DWORD) = 0;																// SendDirectData
-MMRESULT(WINAPI* SDLD)(LPMIDIHDR, UINT) = 0;													// SendDirectLongData
-MMRESULT(WINAPI* PLD)(LPMIDIHDR, UINT) = 0;														// PrepareLongData
-MMRESULT(WINAPI* UPLD)(LPMIDIHDR, UINT) = 0;													// UnprepareLongData
-MMRESULT(WINAPI* mM)(UINT, UINT, DWORD_PTR, DWORD_PTR, DWORD_PTR) = 0;							// modMessage
-BOOL(WINAPI* RKDMAPIV)(LPDWORD, LPDWORD, LPDWORD, LPDWORD) = 0;									// ReturnKDMAPIVer
-BOOL(WINAPI* IOMS)(VOID) = 0;																	// InitializeKDMAPIStream
-BOOL(WINAPI* TOMS)(VOID) = 0;																	// TerminateKDMAPIStream
-VOID(WINAPI* ROMS)(VOID) = 0;																	// ResetKDMAPIStream
-BOOL(WINAPI* IKDMAPIA)(VOID) = 0;																// IsKDMAPIAvailable
+DWORD(WINAPI* TGT)() = 0;																		// TGT
 BOOL(WINAPI* ICF)(HMIDI, DWORD_PTR, DWORD_PTR, DWORD_PTR, DWORD) = 0;							// InitializeCallbackFeatures
 VOID(WINAPI* RCF)(DWORD, DWORD_PTR, DWORD_PTR) = 0;												// RunCallbackFunction
 
@@ -59,7 +47,7 @@ NTSTATUS(NTAPI* NQST)(QWORD*) = 0;																// NtQuerySystemTime
 
 BOOL CheckIfKDMAPIIsUpToDate() {
 	BOOL GoAhead = FALSE;
-	RKDMAPIV(&DrvMajor, &DrvMinor, &DrvBuild, &DrvRevision);
+	ReturnKDMAPIVer(&DrvMajor, &DrvMinor, &DrvBuild, &DrvRevision);
 
 	// WinMMWRP and KDMAPI **MUST** match
 	if (REQ_MAJOR == DrvMajor && REQ_MINOR == DrvMinor && REQ_BUILD <= DrvBuild && REQ_REV <= DrvRevision)
@@ -88,58 +76,48 @@ BOOL CheckIfKDMAPIIsUpToDate() {
 }
 
 BOOL InitializeOMDirectAPI() {
+	if (OM)
+		return TRUE;
+
+	HMODULE NTDLL;
 	HKEY RegKey;
 	BOOL WinMMLegacyMode = FALSE;
 	DWORD dwType = REG_DWORD, dwSize = sizeof(DWORD);
-	wchar_t OMDir[MAX_PATH];
 
-	// Clear memory
-	memset(OMDir, 0, sizeof(OMDir));
+	// Get OM's handle and load the secret sauce functions
+	OM = GetModuleHandleA("OmniMIDI");
+	NTDLL = GetModuleHandleA("ntdll");
 
-	// Get system directory
-	GetSystemDirectoryW(OMDir, MAX_PATH);
+	if (OM != NULL) {
+		ICF = (BOOL*)GetProcAddress(OM, "int_ICF");											// Used internally by the wrapper for callback functions
+		RCF = (BOOL*)GetProcAddress(OM, "int_RCF");											// Used internally by the wrapper for callback functions
+	}
+	else {
+		MessageBox(
+			NULL,
+			"Something went wrong while getting a module handle from OmniMIDI!\n\nPress OK to quit.",
+			"KDMAPI ERROR",
+			MB_ICONERROR | MB_OK | MB_SYSTEMMODAL
+		);
 
-	// Append system directory to OMDir and NTDLLDir, with their respective targets
-	wcscat(OMDir, L"\\OmniMIDI.dll");
-
-	// Load the default DLL from the system directory
-	OM = LoadLibraryW(OMDir);
-	if (!OM) {
-		// Failed, try loading it from the app's directory
-		OM = LoadLibraryW(L"OmniMIDI.dll");
-		if (!OM) {
-			// Failed, OmniMIDI is not available, exit the program
-			MessageBox(
-				NULL,
-				"LoadLibraryW for OmniMIDI.dll failed. Can not load OmniMIDI to memory!\nThe wrapper requires OmniMIDI to be installed, or its runtime to be extracted in the same directory as the wrapper itself.\n\nPress OK close this app.",
-				"KDMAPI ERROR",
-				MB_ICONERROR | MB_OK | MB_SYSTEMMODAL
-			);
-
-			return FALSE;
-		}
+		return FALSE;
 	}
 
-	DS = (void*)GetProcAddress(OM, "DriverSettings");									// Change settings via KDMAPI
-	SCE = (void*)GetProcAddress(OM, "SendCustomEvent");									// Send custom messages to KDMAPI
-	TGT64 = (void*)GetProcAddress(OM, "timeGetTime64");									// timeGetTime but 64-bit, from KDMAPI
-	SDD = (MMRESULT*)GetProcAddress(OM, "SendDirectData");								// Send short messages to KDMAPI
-	SDLD = (MMRESULT*)GetProcAddress(OM, "SendDirectLongData");							// Send long messages to KDMAPI
-	PLD = (MMRESULT*)GetProcAddress(OM, "PrepareLongData");								// Prepare long message with KDMAPI
-	UPLD = (MMRESULT*)GetProcAddress(OM, "UnprepareLongData");							// Unprepare long message with KDMAPI
-	mM = (MMRESULT*)GetProcAddress(OM, "modMessage");									// Other stuff from the driver
-	RKDMAPIV = (BOOL*)GetProcAddress(OM, "ReturnKDMAPIVer");							// Used to check KDMAPI
-	IOMS = (void*)GetProcAddress(OM, "InitializeKDMAPIStream");							// Initialize the audio output and the threads
-	TOMS = (void*)GetProcAddress(OM, "TerminateKDMAPIStream");							// Terminate the audio output and the threads
-	ROMS = (void*)GetProcAddress(OM, "ResetKDMAPIStream");								// Reset the audio output and the MIDI channels
-	ICF = (BOOL*)GetProcAddress(OM, "int_ICF");											// Used internally by the wrapper for callback functions
-	RCF = (BOOL*)GetProcAddress(OM, "int_RCF");											// Used internally by the wrapper for callback functions
-	IKDMAPIA = (BOOL*)GetProcAddress(OM, "IsKDMAPIAvailable");							// Dummy, used to enable the KDMAPI flag in the debug window
-	NQST = (NTSTATUS*)GetProcAddress(GetModuleHandleA("ntdll"), "NtQuerySystemTime");	// Required for TGT
+	if (NTDLL != NULL) {
+		NQST = (NTSTATUS*)GetProcAddress(NTDLL, "NtQuerySystemTime");						// Required for TGT
+	}
+	else {
+		MessageBox(
+			NULL,
+			"Something went wrong while getting a module handle from the NT Layer DLL!\n\nPress OK to quit.",
+			"KDMAPI ERROR",
+			MB_ICONERROR | MB_OK | MB_SYSTEMMODAL
+		);
 
-	if (!DS || !SCE || !TGT64 || !SDD || !SDLD || !PLD ||
-		!UPLD || !mM || !RKDMAPIV || !IOMS || !TOMS ||
-		!ROMS || !ICF || !IKDMAPIA) {
+		return FALSE;
+	}
+
+	if (!ICF || !RCF) {
 		// One of the functions failed to load, exit
 		MessageBox(
 			NULL,
@@ -171,15 +149,17 @@ BOOL InitializeOMDirectAPI() {
 			GetSpeedHack();
 		}
 		else {
-			TGT = TGT64;
+			TGT = timeGetTime64;
 			OutputDebugStringW(L"NtQuerySystemTime set...");
 		}
 	}
 
-	if (CheckIfKDMAPIIsUpToDate()) {
-		IKDMAPIA();
-		return TRUE;
-	}
+	if (!CheckIfKDMAPIIsUpToDate())
+		return FALSE;
+
+	IsKDMAPIAvailable();
+
+	return TRUE;
 }
 
 BOOL DllMain(HINSTANCE hInstDLL, DWORD fdwReason, LPVOID fImpLoad) {
@@ -196,12 +176,15 @@ BOOL DllMain(HINSTANCE hInstDLL, DWORD fdwReason, LPVOID fImpLoad) {
 
 	case DLL_PROCESS_DETACH:
 	{
-		FreeLibrary(OM);
+		if (OM)
+			FreeLibrary(OM);
 
-		for (int i = 0; i < sizeof(MMImports) / sizeof(MMImports[0]); i++)
-			*(MMImports[i].ptr) = 0;
+		if (OWINMM) {
+			for (int i = 0; i < sizeof(MMImports) / sizeof(MMImports[0]); i++)
+				*(MMImports[i].ptr) = 0;
 
-		FreeLibrary(OWINMM);
+			FreeLibrary(OWINMM);
+		}
 
 		return TRUE;
 	}
@@ -244,7 +227,7 @@ MMRESULT WINAPI KDMAPI_midiOutGetDevCapsW(UINT_PTR uDeviceID, LPMIDIOUTCAPSW lpC
 #endif
 
 	// Parse settings from OmniMIDI
-	ret = mM(0, MODM_GETDEVCAPS, OMUser, &myCapsWTMP, sizeof(MIDIOUTCAPSW));
+	ret = modMessage(0, MODM_GETDEVCAPS, OMUser, &myCapsWTMP, sizeof(MIDIOUTCAPSW));
 
 	// Assign values
 	myCapsW.wMid = myCapsWTMP.wMid;
@@ -302,7 +285,7 @@ MMRESULT WINAPI KDMAPI_midiOutShortMsg(HMIDIOUT hMidiOut, DWORD dwMsg) {
 	// If not OM, forward to WinMM
 	if (hMidiOut != OMDummy) return MMmidiOutShortMsg(hMidiOut, dwMsg);
 #endif
-	return SDD(dwMsg);
+	return SendDirectData(dwMsg);
 }
 
 MMRESULT WINAPI KDMAPI_midiOutOpen(LPHMIDIOUT lphmo, UINT uDeviceID, DWORD_PTR dwCallback, DWORD_PTR dwCallbackInstance, DWORD dwFlags) {
@@ -338,16 +321,16 @@ MMRESULT WINAPI KDMAPI_midiOutOpen(LPHMIDIOUT lphmo, UINT uDeviceID, DWORD_PTR d
 		}
 		
 		// Close any stream, just to be safe
-		TOMS();
+		TerminateKDMAPIStream();
 
 		// Initialize a dummy out device
 		*lphmo = OMDummy;
 
 		// Initialize MIDI out
-		if (!IOMS())
+		if (!InitializeKDMAPIStream())
 			return MMSYSERR_ALLOCATED;
 
-		DS(0xFFFFF, NULL, NULL, NULL);
+		DriverSettings(0xFFFFF, NULL, NULL, NULL);
 
 		RCF(MM_MOM_OPEN, 0, 0);
 
@@ -367,9 +350,9 @@ MMRESULT WINAPI KDMAPI_midiOutClose(HMIDIOUT hMidiOut) {
 #endif
 	// Close OM
 	if (OMAlreadyInit) {
-		if (!TOMS()) return MMSYSERR_NOMEM;
+		if (!TerminateKDMAPIStream()) return MMSYSERR_NOMEM;
 
-		DS(0xFFFFE, NULL, NULL, NULL);
+		DriverSettings(0xFFFFE, NULL, NULL, NULL);
 
 		RCF(MM_MOM_CLOSE, 0, 0);
 
@@ -385,7 +368,7 @@ MMRESULT WINAPI KDMAPI_midiOutReset(HMIDIOUT hMidiOut) {
 	if (hMidiOut != OMDummy) return MMmidiOutReset(hMidiOut);
 #endif
 	// Reset the MIDI channels
-	ROMS();
+	ResetKDMAPIStream();
 	return MMSYSERR_NOERROR;
 }
 
@@ -393,14 +376,14 @@ MMRESULT WINAPI KDMAPI_midiOutPrepareHeader(HMIDIOUT hMidiOut, MIDIHDR* lpMidiOu
 #ifdef _DAWRELEASE
 	if (hMidiOut != OMDummy) return MMmidiOutPrepareHeader(hMidiOut, lpMidiOutHdr, uSize);
 #endif
-	return PLD(lpMidiOutHdr, uSize);
+	return PrepareLongData(lpMidiOutHdr, uSize);
 }
 
 MMRESULT WINAPI KDMAPI_midiOutUnprepareHeader(HMIDIOUT hMidiOut, MIDIHDR* lpMidiOutHdr, UINT uSize) {
 #ifdef _DAWRELEASE
 	if (hMidiOut != OMDummy) return MMmidiOutUnprepareHeader(hMidiOut, lpMidiOutHdr, uSize);
 #endif
-	return UPLD(lpMidiOutHdr, uSize);
+	return UnprepareLongData(lpMidiOutHdr, uSize);
 }
 
 MMRESULT WINAPI KDMAPI_midiOutLongMsg(HMIDIOUT hMidiOut, MIDIHDR* lpMidiOutHdr, UINT uSize) {
@@ -408,7 +391,7 @@ MMRESULT WINAPI KDMAPI_midiOutLongMsg(HMIDIOUT hMidiOut, MIDIHDR* lpMidiOutHdr, 
 	if (hMidiOut != OMDummy) return MMmidiOutLongMsg(hMidiOut, lpMidiOutHdr, uSize);
 #endif
 	// Forward the buffer to KDMAPI
-	MMRESULT Ret = SDLD(lpMidiOutHdr, uSize);
+	MMRESULT Ret = SendDirectLongData(lpMidiOutHdr, uSize);
 
 	// Inform the app that the driver successfully received the long message (Required for vanBasco to work), and return the MMRESULT
 	RCF(MM_MOM_DONE, hMidiOut, lpMidiOutHdr);
@@ -445,7 +428,7 @@ MMRESULT WINAPI KDMAPI_midiOutSetVolume(HMIDIOUT hMidiOut, DWORD dwVolume) {
 	if (hMidiOut != OMDummy) return MMmidiOutSetVolume(hMidiOut, dwVolume);
 #endif
 	// Set the volume, even though it won't work lol
-	return mM(0, MODM_SETVOLUME, OMUser, dwVolume, 0);
+	return modMessage(0, MODM_SETVOLUME, OMUser, dwVolume, 0);
 }
 
 MMRESULT WINAPI KDMAPI_midiOutGetVolume(HMIDIOUT hMidiOut, LPDWORD lpdwVolume) {
@@ -453,7 +436,7 @@ MMRESULT WINAPI KDMAPI_midiOutGetVolume(HMIDIOUT hMidiOut, LPDWORD lpdwVolume) {
 	if (hMidiOut != OMDummy) return MMmidiOutGetVolume(hMidiOut, lpdwVolume);
 #endif
 	// Get the volume
-	return mM(0, MODM_GETVOLUME, OMUser, lpdwVolume, 0);
+	return modMessage(0, MODM_GETVOLUME, OMUser, lpdwVolume, 0);
 }
 
 MMRESULT WINAPI KDMAPI_midiOutGetID(HMIDIOUT hMidiOut, LPUINT puDeviceID) {
@@ -512,16 +495,16 @@ MMRESULT WINAPI KDMAPI_midiStreamOpen(LPHMIDISTRM lphStream, LPUINT puDeviceID, 
 		}
 
 		// Close any stream, just to be safe
-		TOMS();
+		TerminateKDMAPIStream();
 
 		// Initialize a dummy out device
 		*lphStream = OMDummy;
 
 		// Initialize MIDI out
-		if (!IOMS())
+		if (!InitializeKDMAPIStream())
 			return MMSYSERR_ALLOCATED;
 
-		DS(0xFFFFF, NULL, NULL, NULL);
+		DriverSettings(0xFFFFF, NULL, NULL, NULL);
 
 		RCF(MM_MOM_OPEN, *lphStream, 0);
 
@@ -539,7 +522,7 @@ MMRESULT WINAPI KDMAPI_midiStreamClose(HMIDISTRM hStream) {
 #endif
 	// Terminate CookedPlayer, free up hStream and return 0
 	if (OMAlreadyInit) {
-		if (TOMS())
+		if (TerminateKDMAPIStream())
 			RCF(MM_MOM_CLOSE, hStream, 0);
 
 		OMAlreadyInit = FALSE;
@@ -554,7 +537,7 @@ MMRESULT WINAPI KDMAPI_midiStreamOut(HMIDISTRM hStream, LPMIDIHDR lpMidiOutHdr, 
 	if (hStream != OMDummy) return MMmidiStreamOut(hStream, lpMidiOutHdr, uSize);
 #endif
 	// Give stream data to CookedPlayer
-	return mM(0, MODM_STRMDATA, &OMUser, lpMidiOutHdr, uSize);
+	return modMessage(0, MODM_STRMDATA, &OMUser, lpMidiOutHdr, uSize);
 }
 
 MMRESULT WINAPI KDMAPI_midiStreamPause(HMIDISTRM hStream) {
@@ -562,7 +545,7 @@ MMRESULT WINAPI KDMAPI_midiStreamPause(HMIDISTRM hStream) {
 	if (hStream != OMDummy) return MMmidiStreamPause(hStream);
 #endif
 	// Pause CookedPlayer
-	return mM(0, MODM_PAUSE, &OMUser, 0, 0);
+	return modMessage(0, MODM_PAUSE, &OMUser, 0, 0);
 }
 
 MMRESULT WINAPI KDMAPI_midiStreamRestart(HMIDISTRM hStream) {
@@ -570,7 +553,7 @@ MMRESULT WINAPI KDMAPI_midiStreamRestart(HMIDISTRM hStream) {
 	if (hStream != OMDummy) return MMmidiStreamRestart(hStream);
 #endif
 	// Play CookedPlayer
-	return mM(0, MODM_RESTART, &OMUser, 0, 0);
+	return modMessage(0, MODM_RESTART, &OMUser, 0, 0);
 }
 
 MMRESULT WINAPI KDMAPI_midiStreamStop(HMIDISTRM hStream) {
@@ -578,7 +561,7 @@ MMRESULT WINAPI KDMAPI_midiStreamStop(HMIDISTRM hStream) {
 	if (hStream != OMDummy) return MMmidiStreamStop(hStream);
 #endif
 	// Stop CookedPlayer
-	return mM(0, MODM_STOP, &OMUser, 0, 0);
+	return modMessage(0, MODM_STOP, &OMUser, 0, 0);
 }
 
 MMRESULT WINAPI KDMAPI_midiStreamProperty(HMIDISTRM hStream, LPBYTE lppropdata, DWORD dwProperty) {
@@ -586,7 +569,7 @@ MMRESULT WINAPI KDMAPI_midiStreamProperty(HMIDISTRM hStream, LPBYTE lppropdata, 
 	if (hStream != OMDummy) return MMmidiStreamProperty(hStream, lppropdata, dwProperty);
 #endif
 	// Pass the prop. data to modMessage
-	return mM(0, MODM_PROPERTIES, &OMUser, lppropdata, dwProperty);
+	return modMessage(0, MODM_PROPERTIES, &OMUser, lppropdata, dwProperty);
 }
 
 MMRESULT WINAPI KDMAPI_midiStreamPosition(HMIDISTRM hStream, LPMMTIME pmmt, UINT cbmmt) {
@@ -594,7 +577,7 @@ MMRESULT WINAPI KDMAPI_midiStreamPosition(HMIDISTRM hStream, LPMMTIME pmmt, UINT
 	if (hStream != OMDummy) return MMmidiStreamPosition(hStream, pmmt, cbmmt);
 #endif
 	// Give CookedPlayer position to MIDI app
-	return mM(0, MODM_GETPOS, &OMUser, pmmt, cbmmt);
+	return modMessage(0, MODM_GETPOS, &OMUser, pmmt, cbmmt);
 }
 
 VOID WINAPI KDMAPI_poweredByKeppy() {
