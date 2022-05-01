@@ -31,10 +31,10 @@ VOID KDMAPI(ResetKDMAPIStream)();
 UINT KDMAPI(SendCustomEvent)(DWORD eventtype, DWORD chan, DWORD param);
 
 // Send short messages through KDMAPI. (Like midiOutShortMsg)
-UINT KDMAPI(SendDirectData)(DWORD dwMsg);
+VOID KDMAPI(SendDirectData)(DWORD dwMsg);
 
 // Send short messages through KDMAPI like SendDirectData, but bypasses the buffer. (Like midiOutShortMsg)
-UINT KDMAPI(SendDirectDataNoBuf)(DWORD dwMsg);
+VOID KDMAPI(SendDirectDataNoBuf)(DWORD dwMsg);
 
 // Send long messages through KDMAPI. (Like midiOutLongMsg)
 UINT KDMAPI(SendDirectLongData)(MIDIHDR* IIMidiHdr, UINT IIMidiHdrSize);
@@ -56,3 +56,7 @@ DWORD64 KDMAPI(timeGetTime64)();
 
 // modMessage
 MMRESULT KDMAPI(modMessage)(UINT uDeviceID, UINT uMsg, DWORD_PTR dwUser, DWORD_PTR dwParam1, DWORD_PTR dwParam2);
+
+// INT
+BOOL KDMAPI(InitializeCallbackFeatures)(HMIDI OMHM, DWORD_PTR OMCB, DWORD_PTR OMI, DWORD_PTR OMU, DWORD OMCM);
+VOID KDMAPI(RunCallbackFunction)(DWORD Msg, DWORD_PTR P1, DWORD_PTR P2);

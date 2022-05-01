@@ -19,9 +19,9 @@ typedef long NTSTATUS;
 
 // Required KDMAPI version
 #define REQ_MAJOR	4
-#define REQ_MINOR	0
+#define REQ_MINOR	1
 #define REQ_BUILD	0
-#define REQ_REV		0
+#define REQ_REV		5
 
 // KDMAPI version from library
 DWORD DrvMajor = 0, DrvMinor = 0, DrvBuild = 0, DrvRevision = 0;
@@ -32,8 +32,6 @@ HMODULE OM = NULL;																				// OM lib
 DWORD_PTR OMUser;																				// Dummy pointer, used for KDMAPI Output
 HMIDI OMDummy = 0x10001;																		// Dummy pointer, used for KDMAPI Output
 DWORD(WINAPI* TGT)() = 0;																		// TGT
-BOOL(WINAPI* ICF)(HMIDI, DWORD_PTR, DWORD_PTR, DWORD_PTR, DWORD) = 0;							// InitializeCallbackFeatures
-VOID(WINAPI* RCF)(DWORD, DWORD_PTR, DWORD_PTR) = 0;												// RunCallbackFunction
 
 // WinNT Kernel funcs
 HMODULE NTDLL = NULL;
@@ -85,23 +83,7 @@ BOOL InitializeOMDirectAPI() {
 	DWORD dwType = REG_DWORD, dwSize = sizeof(DWORD);
 
 	// Get OM's handle and load the secret sauce functions
-	OM = GetModuleHandleA("OmniMIDI");
 	NTDLL = GetModuleHandleA("ntdll");
-
-	if (OM != NULL) {
-		ICF = (BOOL*)GetProcAddress(OM, "int_ICF");											// Used internally by the wrapper for callback functions
-		RCF = (BOOL*)GetProcAddress(OM, "int_RCF");											// Used internally by the wrapper for callback functions
-	}
-	else {
-		MessageBox(
-			NULL,
-			"Something went wrong while getting a module handle from OmniMIDI!\n\nPress OK to quit.",
-			"KDMAPI ERROR",
-			MB_ICONERROR | MB_OK | MB_SYSTEMMODAL
-		);
-
-		return FALSE;
-	}
 
 	if (NTDLL != NULL) {
 		NQST = (NTSTATUS*)GetProcAddress(NTDLL, "NtQuerySystemTime");						// Required for TGT
@@ -110,18 +92,6 @@ BOOL InitializeOMDirectAPI() {
 		MessageBox(
 			NULL,
 			"Something went wrong while getting a module handle from the NT Layer DLL!\n\nPress OK to quit.",
-			"KDMAPI ERROR",
-			MB_ICONERROR | MB_OK | MB_SYSTEMMODAL
-		);
-
-		return FALSE;
-	}
-
-	if (!ICF || !RCF) {
-		// One of the functions failed to load, exit
-		MessageBox(
-			NULL,
-			"Failed to initialize KDMAPI!\n\nPress OK to quit.",
 			"KDMAPI ERROR",
 			MB_ICONERROR | MB_OK | MB_SYSTEMMODAL
 		);
@@ -285,7 +255,8 @@ MMRESULT WINAPI KDMAPI_midiOutShortMsg(HMIDIOUT hMidiOut, DWORD dwMsg) {
 	// If not OM, forward to WinMM
 	if (hMidiOut != OMDummy) return MMmidiOutShortMsg(hMidiOut, dwMsg);
 #endif
-	return SendDirectData(dwMsg);
+	SendDirectData(dwMsg);
+	return MMSYSERR_NOERROR;
 }
 
 MMRESULT WINAPI KDMAPI_midiOutOpen(LPHMIDIOUT lphmo, UINT uDeviceID, DWORD_PTR dwCallback, DWORD_PTR dwCallbackInstance, DWORD dwFlags) {
@@ -312,9 +283,11 @@ MMRESULT WINAPI KDMAPI_midiOutOpen(LPHMIDIOUT lphmo, UINT uDeviceID, DWORD_PTR d
 #endif
 
 	if (!OMAlreadyInit) {
+		// Initialize a dummy out device
+		*lphmo = OMDummy;
+
 		// Setup the Callback (If there's one) - NEEDED FOR VANBASCO!
-		// If dwflags is CALLBACK_EVENT, then skip, since it's not needed. (Java pls)
-		if (!ICF((*lphmo), dwCallback, dwCallbackInstance, &OMUser, dwFlags))
+		if (!InitializeCallbackFeatures((*lphmo), dwCallback, dwCallbackInstance, &OMUser, dwFlags))
 		{
 			MessageBox(NULL, "ICF failed!", "KDMAPI ERROR", MB_SYSTEMMODAL | MB_ICONERROR);
 			return MMSYSERR_INVALPARAM;
@@ -323,21 +296,17 @@ MMRESULT WINAPI KDMAPI_midiOutOpen(LPHMIDIOUT lphmo, UINT uDeviceID, DWORD_PTR d
 		// Close any stream, just to be safe
 		TerminateKDMAPIStream();
 
-		// Initialize a dummy out device
-		*lphmo = OMDummy;
-
 		// Initialize MIDI out
 		if (!InitializeKDMAPIStream())
 			return MMSYSERR_ALLOCATED;
 
 		DriverSettings(0xFFFFF, NULL, NULL, NULL);
 
-		RCF(MM_MOM_OPEN, 0, 0);
+		RunCallbackFunction(MM_MOM_OPEN, 0, 0);
 
 		OMAlreadyInit = TRUE;
 		return MMSYSERR_NOERROR;
 	}
-	else MessageBox(NULL, "OmniMIDI has been already initialized via KDMAPI! Can not initialize it again!", "KDMAPI ERROR", MB_SYSTEMMODAL | MB_ICONERROR);
 
 	return MMSYSERR_ALLOCATED;
 }
@@ -354,7 +323,7 @@ MMRESULT WINAPI KDMAPI_midiOutClose(HMIDIOUT hMidiOut) {
 
 		DriverSettings(0xFFFFE, NULL, NULL, NULL);
 
-		RCF(MM_MOM_CLOSE, 0, 0);
+		RunCallbackFunction(MM_MOM_CLOSE, 0, 0);
 
 		hMidiOut = (HMIDI)0;
 		OMAlreadyInit = FALSE;
@@ -394,7 +363,7 @@ MMRESULT WINAPI KDMAPI_midiOutLongMsg(HMIDIOUT hMidiOut, MIDIHDR* lpMidiOutHdr, 
 	MMRESULT Ret = SendDirectLongData(lpMidiOutHdr, uSize);
 
 	// Inform the app that the driver successfully received the long message (Required for vanBasco to work), and return the MMRESULT
-	RCF(MM_MOM_DONE, hMidiOut, lpMidiOutHdr);
+	RunCallbackFunction(MM_MOM_DONE, hMidiOut, lpMidiOutHdr);
 
 	return Ret;
 }
@@ -488,7 +457,7 @@ MMRESULT WINAPI KDMAPI_midiStreamOpen(LPHMIDISTRM lphStream, LPUINT puDeviceID, 
 #endif
 	if (!OMAlreadyInit) {
 		// Setup the Callback
-		if (!ICF((*lphStream), dwCallback, dwCallbackInstance, &OMUser, fdwOpen | 0x00000002L))
+		if (!InitializeCallbackFeatures((*lphStream), dwCallback, dwCallbackInstance, &OMUser, fdwOpen | 0x00000002L))
 		{
 			MessageBox(NULL, "ICF failed!", "KDMAPI ERROR", MB_SYSTEMMODAL | MB_ICONERROR);
 			return MMSYSERR_INVALPARAM;
@@ -506,12 +475,11 @@ MMRESULT WINAPI KDMAPI_midiStreamOpen(LPHMIDISTRM lphStream, LPUINT puDeviceID, 
 
 		DriverSettings(0xFFFFF, NULL, NULL, NULL);
 
-		RCF(MM_MOM_OPEN, *lphStream, 0);
+		RunCallbackFunction(MM_MOM_OPEN, *lphStream, 0);
 
 		OMAlreadyInit = TRUE;
 		return MMSYSERR_NOERROR;
 	}
-	else MessageBox(NULL, "OmniMIDI has been already initialized via KDMAPI! Can not initialize it again!", "KDMAPI ERROR", MB_SYSTEMMODAL | MB_ICONERROR);
 
 	return MMSYSERR_ALLOCATED;
 }
@@ -523,7 +491,7 @@ MMRESULT WINAPI KDMAPI_midiStreamClose(HMIDISTRM hStream) {
 	// Terminate CookedPlayer, free up hStream and return 0
 	if (OMAlreadyInit) {
 		if (TerminateKDMAPIStream())
-			RCF(MM_MOM_CLOSE, hStream, 0);
+			RunCallbackFunction(MM_MOM_CLOSE, hStream, 0);
 
 		OMAlreadyInit = FALSE;
 		return MMSYSERR_NOERROR;
