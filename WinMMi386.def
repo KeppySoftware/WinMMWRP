@@ -1,7 +1,7 @@
 LIBRARY	winmm.dll
 
 EXPORTS
-	GetOWINMM						= WINMM_GetOWINMM
+	mmsystemGetVersion
 	CloseDriver						= WINMM_CloseDriver
 	DefDriverProc					= WINMM_DefDriverProc
 	DriverCallback					= WINMM_DriverCallback
@@ -12,7 +12,6 @@ EXPORTS
 	PlaySoundStub					= WINMM_PlaySoundA	@2	NONAME
 	PlaySoundA						= WINMM_PlaySoundA
 	PlaySoundW						= WINMM_PlaySoundW
-	PoweredByKeppy					= KDMAPI_poweredByKeppy
 	SendDriverMessage				= WINMM_SendDriverMessage
 	auxGetDevCapsA					= WINMM_auxGetDevCapsA
 	auxGetDevCapsW					= WINMM_auxGetDevCapsW
@@ -67,32 +66,32 @@ EXPORTS
 	midiInStart						= WINMM_midiInStart
 	midiInStop						= WINMM_midiInStop
 	midiInUnprepareHeader			= WINMM_midiInUnprepareHeader
-	midiOutCacheDrumPatches			= KDMAPI_midiOutCacheDrumPatches
-	midiOutCachePatches				= KDMAPI_midiOutCachePatches
-	midiOutClose					= KDMAPI_midiOutClose
-	midiOutGetDevCapsA				= KDMAPI_midiOutGetDevCapsA
-	midiOutGetDevCapsW				= KDMAPI_midiOutGetDevCapsW
+	midiOutCacheDrumPatches			= WRP_midiOutCacheDrumPatches
+	midiOutCachePatches				= WRP_midiOutCachePatches
+	midiOutClose					= WRP_midiOutClose
+	midiOutGetDevCapsA				= WRP_midiOutGetDevCapsA
+	midiOutGetDevCapsW				= WRP_midiOutGetDevCapsW
 	midiOutGetErrorTextA			= WINMM_midiOutGetErrorTextA
 	midiOutGetErrorTextW			= WINMM_midiOutGetErrorTextW
-	midiOutGetID					= KDMAPI_midiOutGetID
-	midiOutGetNumDevs				= KDMAPI_midiOutGetNumDevs
-	midiOutGetVolume				= KDMAPI_midiOutGetVolume
-	midiOutLongMsg					= KDMAPI_midiOutLongMsg
-	midiOutMessage					= KDMAPI_midiOutMessage
-	midiOutOpen						= KDMAPI_midiOutOpen
-	midiOutPrepareHeader			= KDMAPI_midiOutPrepareHeader
-	midiOutReset					= KDMAPI_midiOutReset
-	midiOutSetVolume				= KDMAPI_midiOutSetVolume
-	midiOutShortMsg					= KDMAPI_midiOutShortMsg
-	midiOutUnprepareHeader			= KDMAPI_midiOutUnprepareHeader
-	midiStreamClose					= KDMAPI_midiStreamClose
-	midiStreamOpen					= KDMAPI_midiStreamOpen
-	midiStreamOut					= KDMAPI_midiStreamOut
-	midiStreamPause					= KDMAPI_midiStreamPause
-	midiStreamPosition				= KDMAPI_midiStreamPosition
-	midiStreamProperty				= KDMAPI_midiStreamProperty
-	midiStreamRestart				= KDMAPI_midiStreamRestart
-	midiStreamStop					= KDMAPI_midiStreamStop
+	midiOutGetID					= WRP_midiOutGetID
+	midiOutGetNumDevs				= WRP_midiOutGetNumDevs
+	midiOutGetVolume				= WRP_midiOutGetVolume
+	midiOutLongMsg					= WRP_midiOutLongMsg
+	midiOutMessage					= WRP_midiOutMessage
+	midiOutOpen						= WRP_midiOutOpen
+	midiOutPrepareHeader			= WRP_midiOutPrepareHeader
+	midiOutReset					= WRP_midiOutReset
+	midiOutSetVolume				= WRP_midiOutSetVolume
+	midiOutShortMsg					= WRP_midiOutShortMsg
+	midiOutUnprepareHeader			= WRP_midiOutUnprepareHeader
+	midiStreamClose					= WRP_midiStreamClose
+	midiStreamOpen					= WRP_midiStreamOpen
+	midiStreamOut					= WRP_midiStreamOut
+	midiStreamPause					= WRP_midiStreamPause
+	midiStreamPosition				= WRP_midiStreamPosition
+	midiStreamProperty				= WRP_midiStreamProperty
+	midiStreamRestart				= WRP_midiStreamRestart
+	midiStreamStop					= WRP_midiStreamStop
 	mixerClose						= WINMM_mixerClose
 	mixerGetControlDetailsA			= WINMM_mixerGetControlDetailsA
 	mixerGetControlDetailsW			= WINMM_mixerGetControlDetailsW
@@ -133,14 +132,13 @@ EXPORTS
 	mmioStringToFOURCCA				= WINMM_mmioStringToFOURCCA
 	mmioStringToFOURCCW				= WINMM_mmioStringToFOURCCW
 	mmioWrite						= WINMM_mmioWrite
-	mmsystemGetVersion				= KDMAPI_mmsystemGetVersion
 	sndPlaySoundA					= WINMM_sndPlaySoundA
 	sndPlaySoundW					= WINMM_sndPlaySoundW
 	timeBeginPeriod					= WINMM_timeBeginPeriod
 	timeEndPeriod					= WINMM_timeEndPeriod
 	timeGetDevCaps					= WINMM_timeGetDevCaps
 	timeGetSystemTime				= WINMM_timeGetSystemTime
-	timeGetTime						= FINAL_timeGetTime
+	timeGetTime						= WINMM_timeGetTime
 	timeKillEvent					= WINMM_timeKillEvent
 	timeSetEvent					= WINMM_timeSetEvent
 	waveInAddBuffer					= WINMM_waveInAddBuffer
@@ -182,3 +180,14 @@ EXPORTS
 	waveOutSetVolume				= WINMM_waveOutSetVolume
 	waveOutUnprepareHeader			= WINMM_waveOutUnprepareHeader
 	waveOutWrite					= WINMM_waveOutWrite
+
+	aux32Message					= WINMM_aux32Message
+	joy32Message					= WINMM_joy32Message
+	mci32Message					= WINMM_mci32Message
+	wid32Message					= WINMM_wid32Message
+	mid32Message					= WINMM_mid32Message
+	mod32Message					= WINMM_mod32Message
+	mxd32Message					= WINMM_mxd32Message
+	tid32Message					= WINMM_tid32Message
+	wid32Message					= WINMM_wid32Message
+	wod32Message					= WINMM_wod32Message

@@ -1,13 +1,13 @@
-// Windows Multimedia original functions, used to redirect unedited functions without relying on definition files
+/*
 
-// WinMM funcs, just replace MM with "midiOut" to get the real version
-HMODULE OWINMM = NULL;
-HMODULE KERNEL32 = NULL;
-DWORD(WINAPI* INtimeGetTime)() = 0;
+	OmniMIDI v15+ (Rewrite) for Windows NT
 
-// Wine check
-const char* (WINAPI* WGBI)(void) = 0;
-INT Dummy = 0xFFFFF;
+	This file contains the required code to run the driver under Windows 7 SP1 and later.
+	This file is useful only if you want to compile the driver under Windows, it's not needed for Linux/macOS porting.
+
+*/
+
+#include "WinMM.hpp"
 
 // MIDI out stuff
 MMRESULT(WINAPI* MMmidiStreamClose)(HMIDISTRM) = 0;
@@ -152,8 +152,8 @@ MMRESULT(WINAPI* MMmmioFlush)(HMMIO, UINT) = 0;
 MMRESULT(WINAPI* MMmmioGetInfo)(HMMIO, LPMMIOINFO, UINT) = 0;
 MMRESULT(WINAPI* MMmmioOpenA)(LPTSTR, LPMMIOINFO, DWORD) = 0;
 MMRESULT(WINAPI* MMmmioOpenW)(LPWSTR, LPMMIOINFO, DWORD) = 0;
-MMRESULT(WINAPI* MMmmioRenameA)(LPCTSTR, LPCTSTR, const LPMMIOINFO, DWORD);
-MMRESULT(WINAPI* MMmmioRenameW)(LPCWSTR, LPCWSTR, const LPMMIOINFO, DWORD);
+MMRESULT(WINAPI* MMmmioRenameA)(LPCTSTR, LPCTSTR, const LPMMIOINFO, DWORD) = 0;
+MMRESULT(WINAPI* MMmmioRenameW)(LPCWSTR, LPCWSTR, const LPMMIOINFO, DWORD) = 0;
 MMRESULT(WINAPI* MMmmioSetBuffer)(HMMIO, LPSTR, LONG, UINT) = 0;
 MMRESULT(WINAPI* MMmmioSetInfo)(HMMIO, LPMMIOINFO, UINT) = 0;
 // MMIO stuff
@@ -166,11 +166,12 @@ VOID(WINAPI* MMmmTaskYield)() = 0;
 // MM stuff
 
 // PlaySound stuff
-BOOL(WINAPI* MMPlaySound)(LPCTSTR, HMODULE, DWORD) = 0;
+BOOL(WINAPI* MMPlaySound)(LPCSTR, HMODULE, DWORD) = 0;
 BOOL(WINAPI* MMPlaySoundA)(LPCTSTR, HMODULE, DWORD) = 0;
 BOOL(WINAPI* MMPlaySoundW)(LPCWSTR, HMODULE, DWORD) = 0;
-BOOL(WINAPI* MMsndPlaySoundA)(LPCWSTR, UINT) = 0;
-BOOL(WINAPI* MMsndPlaySoundW)(LPCTSTR, UINT) = 0;
+BOOL(WINAPI* MMsndPlaySound)(LPCSTR, UINT) = 0;
+BOOL(WINAPI* MMsndPlaySoundA)(LPCTSTR, UINT) = 0;
+BOOL(WINAPI* MMsndPlaySoundW)(LPCWSTR, UINT) = 0;
 // PlaySound stuff
 
 // Aux stuff
@@ -230,6 +231,11 @@ MMRESULT(WINAPI* MMwaveInUnprepareHeader)(HWAVEIN, LPWAVEHDR, UINT) = 0;
 UINT(WINAPI* MMwaveInGetNumDevs)() = 0;
 // Wave in stuff
 
+UINT WINAPI mmsystemGetVersion(void) {
+	// Dummy, not needed
+	return 0x0600U;
+}
+
 #ifdef _M_IX86
 // Legacy 16-bit functions
 MMRESULT(WINAPI* MMaux32Message)(UINT_PTR, UINT, DWORD_PTR, DWORD_PTR, DWORD_PTR) = 0;
@@ -244,216 +250,15 @@ MMRESULT(WINAPI* MMwod32Message)(UINT_PTR, UINT, DWORD_PTR, DWORD_PTR, DWORD_PTR
 // Legacy 16-bit functions
 #endif
 
-// Quickity quackity
-#define MMI(f) {& MM##f, #f}
-struct MMImport
-{
-	void** ptr;
-	const char* name;
-} MMImports[] =
-{
-	MMI(CloseDriver),
-	MMI(DefDriverProc),
-	MMI(DriverCallback),
-	MMI(DrvGetModuleHandle),
-	MMI(GetDriverModuleHandle),
-	MMI(OpenDriver),
-	MMI(PlaySound),
-	MMI(PlaySoundA),
-	MMI(PlaySoundW),
-	MMI(SendDriverMessage),
-	MMI(auxGetDevCapsA),
-	MMI(auxGetDevCapsW),
-	MMI(auxGetNumDevs),
-	MMI(auxGetVolume),
-	MMI(auxOutMessage),
-	MMI(auxSetVolume),
-	MMI(joyConfigChanged),
-	MMI(joyGetDevCapsA),
-	MMI(joyGetDevCapsW),
-	MMI(joyGetNumDevs),
-	MMI(joyGetPos),
-	MMI(joyGetPosEx),
-	MMI(joyGetThreshold),
-	MMI(joyReleaseCapture),
-	MMI(joySetCapture),
-	MMI(joySetThreshold),
-	MMI(mciDriverNotify),
-	MMI(mciDriverYield),
-	MMI(mciExecute),
-	MMI(mciFreeCommandResource),
-	MMI(mciGetCreatorTask),
-	MMI(mciGetDeviceIDA),
-	MMI(mciGetDeviceIDFromElementIDA),
-	MMI(mciGetDeviceIDFromElementIDW),
-	MMI(mciGetDeviceIDW),
-	MMI(mciGetDriverData),
-	MMI(mciGetErrorStringA),
-	MMI(mciGetErrorStringW),
-	MMI(mciGetYieldProc),
-	MMI(mciLoadCommandResource),
-	MMI(mciSendCommandA),
-	MMI(mciSendCommandW),
-	MMI(mciSendStringA),
-	MMI(mciSendStringW),
-	MMI(mciSetDriverData),
-	MMI(mciSetYieldProc),
-	MMI(midiConnect),
-	MMI(midiDisconnect),
-	MMI(midiInAddBuffer),
-	MMI(midiInClose),
-	MMI(midiInGetDevCapsA),
-	MMI(midiInGetDevCapsW),
-	MMI(midiInGetErrorTextA),
-	MMI(midiInGetErrorTextW),
-	MMI(midiInGetID),
-	MMI(midiInGetNumDevs),
-	MMI(midiInMessage),
-	MMI(midiInOpen),
-	MMI(midiInPrepareHeader),
-	MMI(midiInReset),
-	MMI(midiInStart),
-	MMI(midiInStop),
-	MMI(midiInUnprepareHeader),
-	MMI(midiOutCacheDrumPatches),
-	MMI(midiOutCachePatches),
-	MMI(midiOutClose),
-	MMI(midiOutGetDevCapsA),
-	MMI(midiOutGetDevCapsW),
-	MMI(midiOutGetErrorTextA),
-	MMI(midiOutGetErrorTextW),
-	MMI(midiOutGetID),
-	MMI(midiOutGetNumDevs),
-	MMI(midiOutGetVolume),
-	MMI(midiOutLongMsg),
-	MMI(midiOutMessage),
-	MMI(midiOutOpen),
-	MMI(midiOutPrepareHeader),
-	MMI(midiOutReset),
-	MMI(midiOutSetVolume),
-	MMI(midiOutShortMsg),
-	MMI(midiOutUnprepareHeader),
-	MMI(midiStreamClose),
-	MMI(midiStreamOpen),
-	MMI(midiStreamOut),
-	MMI(midiStreamPause),
-	MMI(midiStreamPosition),
-	MMI(midiStreamProperty),
-	MMI(midiStreamRestart),
-	MMI(midiStreamStop),
-	MMI(mixerClose),
-	MMI(mixerGetControlDetailsA),
-	MMI(mixerGetControlDetailsW),
-	MMI(mixerGetDevCapsA),
-	MMI(mixerGetDevCapsW),
-	MMI(mixerGetID),
-	MMI(mixerGetLineControlsA),
-	MMI(mixerGetLineControlsW),
-	MMI(mixerGetLineInfoA),
-	MMI(mixerGetLineInfoW),
-	MMI(mixerGetNumDevs),
-	MMI(mixerMessage),
-	MMI(mixerOpen),
-	MMI(mixerSetControlDetails),
-	MMI(mmGetCurrentTask),
-	MMI(mmTaskBlock),
-	MMI(mmTaskCreate),
-	MMI(mmTaskSignal),
-	MMI(mmTaskYield),
-	MMI(mmioAdvance),
-	MMI(mmioAscend),
-	MMI(mmioClose),
-	MMI(mmioCreateChunk),
-	MMI(mmioDescend),
-	MMI(mmioFlush),
-	MMI(mmioGetInfo),
-	MMI(mmioInstallIOProcA),
-	MMI(mmioInstallIOProcW),
-	MMI(mmioOpenA),
-	MMI(mmioOpenW),
-	MMI(mmioRead),
-	MMI(mmioRenameA),
-	MMI(mmioRenameW),
-	MMI(mmioSeek),
-	MMI(mmioSendMessage),
-	MMI(mmioSetBuffer),
-	MMI(mmioSetInfo),
-	MMI(mmioStringToFOURCCA),
-	MMI(mmioStringToFOURCCW),
-	MMI(mmioWrite),
-	MMI(sndPlaySoundA),
-	MMI(sndPlaySoundW),
-	MMI(timeBeginPeriod),
-	MMI(timeEndPeriod),
-	MMI(timeGetDevCaps),
-	MMI(timeGetSystemTime),
-	MMI(timeGetTime),
-	MMI(timeKillEvent),
-	MMI(timeSetEvent),
-	MMI(waveInAddBuffer),
-	MMI(waveInClose),
-	MMI(waveInGetDevCapsA),
-	MMI(waveInGetDevCapsW),
-	MMI(waveInGetErrorTextA),
-	MMI(waveInGetErrorTextW),
-	MMI(waveInGetID),
-	MMI(waveInGetNumDevs),
-	MMI(waveInGetPosition),
-	MMI(waveInMessage),
-	MMI(waveInOpen),
-	MMI(waveInPrepareHeader),
-	MMI(waveInReset),
-	MMI(waveInStart),
-	MMI(waveInStop),
-	MMI(waveInUnprepareHeader),
-	MMI(waveOutBreakLoop),
-	MMI(waveOutClose),
-	MMI(waveOutGetDevCapsA),
-	MMI(waveOutGetDevCapsW),
-	MMI(waveOutGetErrorTextA),
-	MMI(waveOutGetErrorTextW),
-	MMI(waveOutGetID),
-	MMI(waveOutGetNumDevs),
-	MMI(waveOutGetPitch),
-	MMI(waveOutGetPlaybackRate),
-	MMI(waveOutGetPosition),
-	MMI(waveOutGetVolume),
-	MMI(waveOutMessage),
-	MMI(waveOutOpen),
-	MMI(waveOutPause),
-	MMI(waveOutPrepareHeader),
-	MMI(waveOutReset),
-	MMI(waveOutRestart),
-	MMI(waveOutSetPitch),
-	MMI(waveOutSetPlaybackRate),
-	MMI(waveOutSetVolume),
-	MMI(waveOutUnprepareHeader),
-	MMI(waveOutWrite),
-
-#ifdef _M_IX86
-	MMI(aux32Message),
-	MMI(joy32Message),
-	MMI(mci32Message),
-	MMI(mid32Message),
-	MMI(mod32Message),
-	MMI(mxd32Message),
-	MMI(tid32Message),
-	MMI(wid32Message),
-	MMI(wod32Message)
-#endif
-};
-
-// Functions start -> HERE <-
-
-HDRVR WINAPI WINMM_OpenDriver(_In_ LPCWSTR lpDN, _In_ LPCWSTR lpSN, _In_ LPARAM lp) {
+HDRVR WINAPI WINMM_OpenDriver(LPCWSTR lpDN, LPCWSTR lpSN, LPARAM lp) {
 	return MMOpenDriver(lpDN, lpSN, lp);
 }
 
-LRESULT WINAPI WINMM_CloseDriver(_In_ HDRVR drv, _In_ LPARAM lP1, _In_ LPARAM lP2) {
+LRESULT WINAPI WINMM_CloseDriver(HDRVR drv, LPARAM lP1, LPARAM lP2) {
 	return MMCloseDriver(drv, lP1, lP2);
 }
 
-LRESULT WINAPI WINMM_SendDriverMessage(_In_ HDRVR drv, _In_ UINT msg, _Inout_ LPARAM lP1, _Inout_ LPARAM lP2) {
+LRESULT WINAPI WINMM_SendDriverMessage(HDRVR drv, UINT msg, LPARAM lP1, LPARAM lP2) {
 	return MMSendDriverMessage(drv, msg, lP1, lP2);
 }
 
@@ -461,11 +266,11 @@ DWORD WINAPI WINMM_mmGetCurrentTask() {
 	return MMmmGetCurrentTask();
 }
 
-HMODULE WINAPI WINMM_DrvGetModuleHandle(_In_ HDRVR drv) {
+HMODULE WINAPI WINMM_DrvGetModuleHandle(HDRVR drv) {
 	return MMDrvGetModuleHandle(drv);
 }
 
-HMODULE WINAPI WINMM_GetDriverModuleHandle(_In_ HDRVR drv) {
+HMODULE WINAPI WINMM_GetDriverModuleHandle(HDRVR drv) {
 	return MMGetDriverModuleHandle(drv);
 }
 
@@ -485,11 +290,11 @@ MMRESULT WINAPI WINMM_midiOutGetErrorTextW(MMRESULT err, LPWSTR pszT, UINT cchT)
 	return MMmidiOutGetErrorTextW(err, pszT, cchT);
 }
 
-MMRESULT WINAPI WINMM_midiConnect(HMIDI hS, HMIDIIN hM, LPVOID lpV) {
+MMRESULT WINAPI WINMM_midiConnect(HMIDI hS, HMIDIOUT hM, LPVOID lpV) {
 	return MMmidiConnect(hS, hM, lpV);
 }
 
-MMRESULT WINAPI WINMM_midiDisconnect(HMIDI hS, HMIDIIN hM, LPVOID lpV) {
+MMRESULT WINAPI WINMM_midiDisconnect(HMIDI hS, HMIDIOUT hM, LPVOID lpV) {
 	return MMmidiDisconnect(hS, hM, lpV);
 }
 
@@ -503,6 +308,108 @@ MMRESULT WINAPI WINMM_midiInPrepareHeader(HMIDIIN hM, LPMIDIHDR buf, UINT bufsiz
 
 MMRESULT WINAPI WINMM_midiInUnprepareHeader(HMIDIIN hM, LPMIDIHDR buf, UINT bufsize) {
 	return MMmidiInPrepareHeader(hM, buf, bufsize);
+}
+
+UINT WINAPI WINMM_midiOutGetNumDevs() {
+	int v = MMmidiOutGetNumDevs();
+	return v;
+}
+
+MMRESULT WINAPI WINMM_midiOutGetDevCapsW(UINT_PTR uDeviceID, LPMIDIOUTCAPSW lpCaps, UINT uSize) {
+	return MMmidiOutGetDevCapsW(uDeviceID, lpCaps, uSize);
+}
+
+MMRESULT WINAPI WINMM_midiOutGetDevCapsA(UINT_PTR uDeviceID, LPMIDIOUTCAPSA lpCaps, UINT uSize) {
+	return MMmidiOutGetDevCapsA(uDeviceID, lpCaps, uSize);
+}
+
+MMRESULT WINAPI WINMM_midiOutShortMsg(HMIDIOUT hMidiOut, DWORD dwMsg) {
+	return MMmidiOutShortMsg(hMidiOut, dwMsg);
+}
+
+MMRESULT WINAPI WINMM_midiOutOpen(LPHMIDIOUT lphmo, UINT uDeviceID, DWORD_PTR dwCallback, DWORD_PTR dwCallbackInstance, DWORD dwFlags) {
+	return MMmidiOutOpen(lphmo, uDeviceID, dwCallback, dwCallbackInstance, dwFlags);
+}
+
+MMRESULT WINAPI WINMM_midiOutClose(HMIDIOUT hMidiOut) {
+	return MMmidiOutClose(hMidiOut);
+}
+
+MMRESULT WINAPI WINMM_midiOutReset(HMIDIOUT hMidiOut) {
+	return MMmidiOutReset(hMidiOut);
+}
+
+MMRESULT WINAPI WINMM_midiOutPrepareHeader(HMIDIOUT hMidiOut, LPMIDIHDR lpMidiOutHdr, UINT uSize) {
+	return MMmidiOutPrepareHeader(hMidiOut, lpMidiOutHdr, uSize);
+}
+
+MMRESULT WINAPI WINMM_midiOutUnprepareHeader(HMIDIOUT hMidiOut, LPMIDIHDR lpMidiOutHdr, UINT uSize) {
+	return MMmidiOutUnprepareHeader(hMidiOut, lpMidiOutHdr, uSize);
+}
+
+MMRESULT WINAPI WINMM_midiOutLongMsg(HMIDIOUT hMidiOut, LPMIDIHDR lpMidiOutHdr, UINT uSize) {
+	return MMmidiOutLongMsg(hMidiOut, lpMidiOutHdr, uSize);
+}
+
+MMRESULT WINAPI WINMM_midiOutMessage(HMIDIOUT hMidiOut, UINT uMsg, DWORD_PTR dw1, DWORD_PTR dw2) {
+	return MMmidiOutMessage(hMidiOut, uMsg, dw1, dw2);
+}
+
+MMRESULT WINAPI WINMM_midiOutSetVolume(HMIDIOUT hMidiOut, DWORD dwVolume) {
+	return MMmidiOutSetVolume(hMidiOut, dwVolume);
+}
+
+MMRESULT WINAPI WINMM_midiOutGetVolume(HMIDIOUT hMidiOut, LPDWORD lpdwVolume) {
+	return MMmidiOutGetVolume(hMidiOut, lpdwVolume);
+}
+
+MMRESULT WINAPI WINMM_midiOutGetID(HMIDIOUT hMidiOut, LPUINT puDeviceID) {
+	return MMmidiOutGetID(hMidiOut, puDeviceID);
+}
+
+MMRESULT WINAPI WINMM_midiStreamOpen(LPHMIDISTRM lphStream, LPUINT puDeviceID, DWORD cMidi, DWORD_PTR dwCallback, DWORD_PTR dwCallbackInstance, DWORD fdwOpen) {
+	return MMmidiStreamOpen(lphStream, puDeviceID, cMidi, dwCallback, dwCallbackInstance, fdwOpen);
+}
+
+MMRESULT WINAPI WINMM_midiStreamClose(HMIDISTRM hStream) {
+	return MMmidiStreamClose(hStream);
+}
+
+MMRESULT WINAPI WINMM_midiStreamOut(HMIDISTRM hStream, LPMIDIHDR lpMidiOutHdr, UINT uSize) {
+	return MMmidiStreamOut(hStream, lpMidiOutHdr, uSize);
+}
+
+MMRESULT WINAPI WINMM_midiStreamPause(HMIDISTRM hStream) {
+	return MMmidiStreamPause(hStream);
+}
+
+MMRESULT WINAPI WINMM_midiStreamRestart(HMIDISTRM hStream) {
+	return MMmidiStreamRestart(hStream);
+}
+
+MMRESULT WINAPI WINMM_midiStreamStop(HMIDISTRM hStream) {
+	return MMmidiStreamStop(hStream);
+}
+
+MMRESULT WINAPI WINMM_midiStreamProperty(HMIDISTRM hStream, LPBYTE lppropdata, DWORD dwProperty) {
+	return MMmidiStreamProperty(hStream, lppropdata, dwProperty);
+}
+
+MMRESULT WINAPI WINMM_midiStreamPosition(HMIDISTRM hStream, LPMMTIME pmmt, UINT cbmmt) {
+	return MMmidiStreamPosition(hStream, pmmt, cbmmt);
+}
+
+MMRESULT WINAPI WINMM_midiOutCachePatches(HMIDIOUT hMidiOut, UINT wPatch, LPWORD lpPatchArray, UINT wFlags) {
+	return MMmidiOutCachePatches(hMidiOut, wPatch, lpPatchArray, wFlags);
+}
+
+MMRESULT WINAPI WINMM_midiOutCacheDrumPatches(HMIDIOUT hMidiOut, UINT wPatch, LPWORD lpKeyArray, UINT wFlags) {
+	return MMmidiOutCacheDrumPatches(hMidiOut, wPatch, lpKeyArray, wFlags);
+}
+
+UINT WINAPI WINMM_mmsystemGetVersion(void) {
+	// Dummy, not needed
+	return 0x0502U;
 }
 
 MMRESULT WINAPI WINMM_midiInOpen(LPHMIDIIN lphM, UINT uDID, DWORD_PTR dwC, DWORD_PTR dwCI, DWORD dwF) {
@@ -533,7 +440,7 @@ MMRESULT WINAPI WINMM_midiInGetDevCapsA(UINT_PTR uP, LPMIDIINCAPSA LPMIC, UINT u
 	return MMmidiInGetDevCapsA(uP, LPMIC, u);
 }
 
-MMRESULT WINAPI WINMM_midiInGetDevCapsW(UINT_PTR uP, LPMIDIINCAPSA LPMIC, UINT u) {
+MMRESULT WINAPI WINMM_midiInGetDevCapsW(UINT_PTR uP, LPMIDIINCAPSW LPMIC, UINT u) {
 	return MMmidiInGetDevCapsW(uP, LPMIC, u);
 }
 
@@ -541,7 +448,7 @@ MMRESULT WINAPI WINMM_midiInGetErrorTextA(MMRESULT mmr, LPSTR str, UINT u) {
 	return MMmidiInGetErrorTextA(mmr, str, u);
 }
 
-MMRESULT WINAPI WINMM_midiInGetErrorTextW(MMRESULT mmr, LPSTR str, UINT u) {
+MMRESULT WINAPI WINMM_midiInGetErrorTextW(MMRESULT mmr, LPWSTR str, UINT u) {
 	return MMmidiInGetErrorTextW(mmr, str, u);
 }
 
@@ -549,7 +456,7 @@ MMRESULT WINAPI WINMM_midiInMessage(HMIDIIN hM, UINT u, DWORD_PTR dwP1, DWORD_PT
 	return MMmidiInMessage(hM, u, dwP1, dwP2);
 }
 
-MMRESULT WINAPI WINMM_midiInGetNumDevs() {
+UINT WINAPI WINMM_midiInGetNumDevs() {
 	return MMmidiInGetNumDevs();
 }
 
@@ -601,7 +508,7 @@ BOOL WINAPI WINMM_mciExecute(LPCSTR pC) {
 	return MMmciExecute(pC);
 }
 
-UINT WINAPI WINMM_mciLoadCommandResource(HANDLE hI, LPCWSTR lpRN, UINT wT) {
+UINT WINAPI WINMM_mciLoadCommandResource(HINSTANCE hI, LPCWSTR lpRN, UINT wT) {
 	return MMmciLoadCommandResource(hI, lpRN, wT);
 }
 
@@ -669,7 +576,7 @@ UINT WINAPI WINMM_mciSetYieldProc(MCIDEVICEID wDID, YIELDPROC fpYP, DWORD dwYD) 
 	return MMmciSetYieldProc(wDID, fpYP, dwYD);
 }
 
-YIELDPROC WINAPI WINMM_mciGetYieldProc(MCIDEVICEID wDID, DWORD lpdwYD) {
+YIELDPROC WINAPI WINMM_mciGetYieldProc(MCIDEVICEID wDID, LPDWORD lpdwYD) {
 	return MMmciGetYieldProc(wDID, lpdwYD);
 }
 
@@ -717,7 +624,7 @@ MMRESULT WINAPI WINMM_mixerGetDevCapsW(UINT_PTR uDID, LPMIXERCAPSW LPMC, UINT si
 	return MMmixerGetDevCapsW(uDID, LPMC, size);
 }
 
-MMRESULT WINAPI WINMM_mixerGetID(HMIXEROBJ dIDO, UINT FAR * puMxId, DWORD fdwld) {
+MMRESULT WINAPI WINMM_mixerGetID(HMIXEROBJ dIDO, UINT* puMxId, DWORD fdwld) {
 	return MMmixerGetID(dIDO, puMxId, fdwld);
 }
 
@@ -745,7 +652,7 @@ LONG WINAPI WINMM_mmioSeek(HMMIO hm, LONG lO, INT iO) {
 	return MMmmioSeek(hm, lO, iO);
 }
 
-LONG WINAPI WINMM_mmioWrite(HMMIO hm, char _huge * pch, LONG cch) {
+LONG WINAPI WINMM_mmioWrite(HMMIO hm, char* pch, LONG cch) {
 	return MMmmioWrite(hm, pch, cch);
 }
 
@@ -777,7 +684,7 @@ MMRESULT WINAPI WINMM_mmioCreateChunk(HMMIO hm, LPMMCKINFO pmmcki, UINT fuC) {
 	return MMmmioCreateChunk(hm, pmmcki, fuC);
 }
 
-MMRESULT WINAPI WINMM_mmioDescend(HMMIO hm, LPMMCKINFO pmmcki, const MMCKINFO * pmmckiP, UINT fuD) {
+MMRESULT WINAPI WINMM_mmioDescend(HMMIO hm, LPMMCKINFO pmmcki, const MMCKINFO* pmmckiP, UINT fuD) {
 	return MMmmioDescend(hm, pmmcki, pmmckiP, fuD);
 }
 
@@ -833,7 +740,7 @@ BOOL WINAPI WINMM_PlaySound(LPCSTR pszS, HMODULE hmod, DWORD fdwS) {
 	return MMPlaySound(pszS, hmod, fdwS);
 }
 
-BOOL WINAPI WINMM_PlaySoundA(LPCSTR pszS, HMODULE hmod, DWORD fdwS) {
+BOOL WINAPI WINMM_PlaySoundA(LPCTSTR pszS, HMODULE hmod, DWORD fdwS) {
 	return MMPlaySoundA(pszS, hmod, fdwS);
 }
 
@@ -841,11 +748,7 @@ BOOL WINAPI WINMM_PlaySoundW(LPCWSTR pszS, HMODULE hmod, DWORD fdwS) {
 	return MMPlaySoundW(pszS, hmod, fdwS);
 }
 
-BOOL WINAPI WINMM_sndPlaySound(LPCSTR pszS, DWORD fuS) {
-	return MMsndPlaySoundA(pszS, fuS);
-}
-
-BOOL WINAPI WINMM_sndPlaySoundA(LPCSTR pszS, DWORD fuS) {
+BOOL WINAPI WINMM_sndPlaySoundA(LPCTSTR pszS, DWORD fuS) {
 	return MMsndPlaySoundA(pszS, fuS);
 }
 
@@ -1046,11 +949,11 @@ UINT WINAPI WINMM_waveInGetNumDevs() {
 }
 
 DWORD WINAPI WINMM_timeGetTime() {
-	return TickStart + (DWORD)((MMtimeGetTime() - TickStart) * SpeedHack);
+	return MMtimeGetTime();
 }
 
 MMRESULT WINAPI WINMM_timeGetDevCaps(LPTIMECAPS ptc, UINT cbtc) {
-	return MMtimeGetDevCaps(ptc, &cbtc);
+	return MMtimeGetDevCaps(ptc, cbtc);
 }
 
 MMRESULT WINAPI WINMM_timeSetEvent(UINT uDelay, UINT uResolution, LPTIMECALLBACK lpTimeProc, DWORD_PTR dwUser, UINT fuEvent) {
@@ -1062,7 +965,7 @@ MMRESULT WINAPI WINMM_timeKillEvent(UINT uTimerID) {
 }
 
 MMRESULT WINAPI WINMM_timeGetSystemTime(LPMMTIME pmmt, UINT cbmmt) {
-	return MMtimeGetSystemTime(pmmt, &cbmmt);
+	return MMtimeGetSystemTime(pmmt, cbmmt);
 }
 
 MMRESULT WINAPI WINMM_timeBeginPeriod(UINT uPeriod) {
@@ -1073,184 +976,40 @@ MMRESULT WINAPI WINMM_timeEndPeriod(UINT uPeriod) {
 	return MMtimeEndPeriod(uPeriod);
 }
 
-HMODULE WINAPI WINMM_GetOWINMM() {
-	return OWINMM;
-}
-
 #ifdef _M_IX86
 MMRESULT WINAPI WINMM_aux32Message(UINT_PTR uDeviceID, UINT uMsg, DWORD_PTR Handle, DWORD_PTR dwParam1, DWORD_PTR dwParam2) {
-	if (MMaux32Message != Dummy) return MMaux32Message(uDeviceID, uMsg, Handle, dwParam1, dwParam2);
-	else return MMSYSERR_NOERROR;
+	return MMaux32Message(uDeviceID, uMsg, Handle, dwParam1, dwParam2);
 }
 
 MMRESULT WINAPI WINMM_joy32Message(UINT_PTR uDeviceID, UINT uMsg, DWORD_PTR Handle, DWORD_PTR dwParam1, DWORD_PTR dwParam2) {
-	if (MMjoy32Message != Dummy) return MMjoy32Message(uDeviceID, uMsg, Handle, dwParam1, dwParam2);
-	else return MMSYSERR_NOERROR;
+	return MMjoy32Message(uDeviceID, uMsg, Handle, dwParam1, dwParam2);
 }
 
 MMRESULT WINAPI WINMM_mci32Message(UINT_PTR uDeviceID, UINT uMsg, DWORD_PTR Handle, DWORD_PTR dwParam1, DWORD_PTR dwParam2) {
-	if (MMmci32Message != Dummy) return MMmci32Message(uDeviceID, uMsg, Handle, dwParam1, dwParam2);
-	else return MMSYSERR_NOERROR;
+	return MMmci32Message(uDeviceID, uMsg, Handle, dwParam1, dwParam2);
 }
 
 MMRESULT WINAPI WINMM_mid32Message(UINT_PTR uDeviceID, UINT uMsg, DWORD_PTR Handle, DWORD_PTR dwParam1, DWORD_PTR dwParam2) {
-	if (MMmid32Message != Dummy) return MMmid32Message(uDeviceID, uMsg, Handle, dwParam1, dwParam2);
-	else return MMSYSERR_NOERROR;
+	return MMmid32Message(uDeviceID, uMsg, Handle, dwParam1, dwParam2);
 }
 
 MMRESULT WINAPI WINMM_mod32Message(UINT_PTR uDeviceID, UINT uMsg, DWORD_PTR Handle, DWORD_PTR dwParam1, DWORD_PTR dwParam2) {
-	if (MMmod32Message != Dummy) return MMmod32Message(uDeviceID, uMsg, Handle, dwParam1, dwParam2);
-	else return MMSYSERR_NOERROR;
+	return MMmod32Message(uDeviceID, uMsg, Handle, dwParam1, dwParam2);
 }
 
 MMRESULT WINAPI WINMM_mxd32Message(UINT_PTR uDeviceID, UINT uMsg, DWORD_PTR Handle, DWORD_PTR dwParam1, DWORD_PTR dwParam2) {
-	if (MMmxd32Message != Dummy) return MMmxd32Message(uDeviceID, uMsg, Handle, dwParam1, dwParam2);
-	else return MMSYSERR_NOERROR;
+	return MMmxd32Message(uDeviceID, uMsg, Handle, dwParam1, dwParam2);
 }
 
 MMRESULT WINAPI WINMM_tid32Message(UINT_PTR uDeviceID, UINT uMsg, DWORD_PTR Handle, DWORD_PTR dwParam1, DWORD_PTR dwParam2) {
-	if (MMtid32Message != Dummy) return MMtid32Message(uDeviceID, uMsg, Handle, dwParam1, dwParam2);
-	else return MMSYSERR_NOERROR;
+	return MMtid32Message(uDeviceID, uMsg, Handle, dwParam1, dwParam2);
 }
 
 MMRESULT WINAPI WINMM_wid32Message(UINT_PTR uDeviceID, UINT uMsg, DWORD_PTR hMidi, DWORD_PTR dwParam1, DWORD_PTR dwParam2) {
-	if (MMwid32Message != Dummy) return MMwid32Message(uDeviceID, uMsg, hMidi, dwParam1, dwParam2);
-	else return MMSYSERR_NOERROR;
+	return MMwid32Message(uDeviceID, uMsg, hMidi, dwParam1, dwParam2);
 }
 
 MMRESULT WINAPI WINMM_wod32Message(UINT_PTR uDeviceID, UINT uMsg, DWORD_PTR hMidi, DWORD_PTR dwParam1, DWORD_PTR dwParam2) {
-	if (MMwod32Message != Dummy) return MMwod32Message(uDeviceID, uMsg, hMidi, dwParam1, dwParam2);
-	else return MMSYSERR_NOERROR;
+	return MMwod32Message(uDeviceID, uMsg, hMidi, dwParam1, dwParam2);
 }
 #endif
-
-BOOL IsOMRunningUnderWine() {
-	HMODULE hntdll = GetModuleHandle("ntdll");
-	if (!hntdll) return FALSE;
-
-	WGBI = (void*)GetProcAddress(hntdll, "wine_get_build_id");
-	return (WGBI != NULL) ? TRUE : FALSE;
-}
-
-BOOL ImportFromWinMM(int i, TCHAR* ErrorBuf) {
-	*(MMImports[i].ptr) = (void*)GetProcAddress(OWINMM, MMImports[i].name);
-
-	if (!*(MMImports[i].ptr)) {
-		sprintf_s(
-			ErrorBuf,
-			1024,
-			"An error has occured while loading \"%s\" from the Windows Multimedia Extension API library.\n\nFailed to load the required functions, press OK to exit.",
-			MMImports[i].name);
-
-		MessageBox(
-			NULL,
-			ErrorBuf,
-			"KDMAPI ERROR",
-			MB_ICONERROR | MB_OK | MB_SYSTEMMODAL
-		);
-		return FALSE;
-	}
-}
-
-void GetSpeedHack() {
-	char Potato[64] = { 0 };
-
-	HKEY RegKey;
-	QWORD TSH = 100000000;
-	DWORD dwType = REG_DWORD, dwSize = sizeof(DWORD);
-
-	LSTATUS ROKE = RegOpenKeyExW(HKEY_CURRENT_USER, L"Software\\OmniMIDI\\Configuration", 0, KEY_READ, &RegKey);
-	if (!ROKE) {
-		RegQueryValueExW(RegKey, L"WinMMSpeed", NULL, &dwType, (LPBYTE)&TSH, &dwSize);
-		SpeedHack = ((double)TSH / 100000000.0);
-		TickStart = MMtimeGetTime();
-	}
-	RegCloseKey(&RegKey);
-}
-
-BOOL InitializeWinMM() {
-	if (OWINMM)
-		return TRUE;
-
-	BOOL IOMRUW = IsOMRunningUnderWine();
-
-	if (!OWINMM) {
-		// Load WinMM from system directory if copy isn't found in the app's directory
-		if (INVALID_FILE_ATTRIBUTES == GetFileAttributes("owinmm.dll") && GetLastError() == ERROR_FILE_NOT_FOUND)
-		{
-			wchar_t SystemDirectory[MAX_PATH];
-			GetSystemDirectoryW(SystemDirectory, MAX_PATH);
-			wcscat(SystemDirectory, L"\\winmm.dll");
-
-			OWINMM = LoadLibraryW(SystemDirectory);
-		}
-		// Else load the custom DLL
-		else OWINMM = LoadLibraryW(L"owinmm.dll");
-
-		KERNEL32 = GetModuleHandleW(L"kernel32");
-
-		if (!OWINMM) {
-			MessageBox(
-				NULL,
-				"The wrapper was unable to load WINMM.DLL!\nUnable to initialize the Windows Multimedia Extension API.\n\nPress OK to exit.",
-				"KDMAPI ERROR",
-				MB_ICONERROR | MB_OK | MB_SYSTEMMODAL
-			);
-
-			return FALSE;
-		}
-
-		if (!KERNEL32) {
-			MessageBox(
-				NULL,
-				"The wrapper was unable to locate KERNEL32.DLL!\nIs this even Windows?\n\nPress OK to exit.",
-				"KDMAPI ERROR",
-				MB_ICONERROR | MB_OK | MB_SYSTEMMODAL
-			);
-
-			return FALSE;
-		}
-	}
-
-#ifdef _M_IX86
-	if (IOMRUW) {
-		MMaux32Message = Dummy;
-		MMjoy32Message = Dummy;
-		MMmci32Message = Dummy;
-		MMmid32Message = Dummy;
-		MMmod32Message = Dummy;
-		MMmxd32Message = Dummy;
-		MMtid32Message = Dummy;
-		MMwid32Message = Dummy;
-		MMwod32Message = Dummy;
-
-		printf("Detected Wine.");
-	}
-#endif
-	TCHAR ErrorBuf[1024];
-
-	// LOAD EVERYTHING!
-	for (int i = 0; i < sizeof(MMImports) / sizeof(MMImports[0]); i++)
-	{
-		if (*(MMImports[i].ptr) == Dummy) {
-			OutputDebugString(MMImports[i].name);
-			OutputDebugString("Not present in Wine, continue...");
-			continue;
-		}
-
-		if (!_stricmp(MMImports[i].name, "timeBeginPeriod") ||
-			!_stricmp(MMImports[i].name, "timeEndPeriod") ||
-			!_stricmp(MMImports[i].name, "timeGetDevCaps") ||
-			!_stricmp(MMImports[i].name, "timeGetSystemTime") ||
-			!_stricmp(MMImports[i].name, "timeGetTime"))
-		{
-			*(MMImports[i].ptr) = (void*)GetProcAddress(KERNEL32, MMImports[i].name);
-
-			if (!*(MMImports[i].ptr))
-				ImportFromWinMM(i, ErrorBuf);
-		}
-		else ImportFromWinMM(i, ErrorBuf);
-	}
-
-	return TRUE;
-}

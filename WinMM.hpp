@@ -1,0 +1,257 @@
+/*
+
+	OmniMIDI v15+ (Rewrite) for Windows NT
+
+	This file contains the required code to run the driver under Windows 7 SP1 and later.
+	This file is useful only if you want to compile the driver under Windows, it's not needed for Linux/macOS porting.
+
+*/
+
+#ifndef _MMHPP
+#define _MMHPP
+
+#pragma once
+
+#define MIDI_IO_PACKED	0x00000000L			// Legacy mode, used by most MIDI apps
+#define MIDI_IO_COOKED	0x00000002L			// Stream mode, used by some old MIDI apps (Such as GZDoom)
+
+#include <windows.h>
+#include "mmddk.h"
+
+// MIDI out stuff
+extern MMRESULT(WINAPI* MMmidiStreamClose)(HMIDISTRM);
+extern MMRESULT(WINAPI* MMmidiStreamOpen)(LPHMIDISTRM, LPUINT, DWORD, DWORD_PTR, DWORD_PTR, DWORD);
+extern MMRESULT(WINAPI* MMmidiStreamOut)(HMIDISTRM, LPMIDIHDR, UINT);
+extern MMRESULT(WINAPI* MMmidiStreamPause)(HMIDISTRM);
+extern MMRESULT(WINAPI* MMmidiStreamPosition)(HMIDISTRM, LPMMTIME, UINT);
+extern MMRESULT(WINAPI* MMmidiStreamProperty)(HMIDISTRM, LPBYTE, DWORD);
+extern MMRESULT(WINAPI* MMmidiStreamRestart)(HMIDISTRM);
+extern MMRESULT(WINAPI* MMmidiStreamStop)(HMIDISTRM);
+extern MMRESULT(WINAPI* MMmidiOutCacheDrumPatches)(HMIDIOUT, UINT, LPWORD, UINT);
+extern MMRESULT(WINAPI* MMmidiOutCachePatches)(HMIDIOUT, UINT, LPWORD, UINT);
+extern MMRESULT(WINAPI* MMmidiOutClose)(HMIDIOUT);
+extern MMRESULT(WINAPI* MMmidiOutGetDevCapsA)(UINT_PTR, LPMIDIOUTCAPSA, UINT);
+extern MMRESULT(WINAPI* MMmidiOutGetDevCapsW)(UINT_PTR, LPMIDIOUTCAPSW, UINT);
+extern MMRESULT(WINAPI* MMmidiOutGetErrorTextA)(MMRESULT, LPSTR, UINT);
+extern MMRESULT(WINAPI* MMmidiOutGetErrorTextW)(MMRESULT, LPWSTR, UINT);
+extern MMRESULT(WINAPI* MMmidiOutGetID)(HMIDIOUT, LPUINT);
+extern MMRESULT(WINAPI* MMmidiOutGetVolume)(HMIDIOUT, LPDWORD);
+extern MMRESULT(WINAPI* MMmidiOutLongMsg)(HMIDIOUT, LPMIDIHDR, UINT);
+extern MMRESULT(WINAPI* MMmidiOutMessage)(HMIDIOUT, UINT, DWORD_PTR, DWORD_PTR);
+extern MMRESULT(WINAPI* MMmidiOutOpen)(LPHMIDIOUT, UINT, DWORD_PTR, DWORD_PTR, DWORD);
+extern MMRESULT(WINAPI* MMmidiOutPrepareHeader)(HMIDIOUT, LPMIDIHDR, UINT);
+extern MMRESULT(WINAPI* MMmidiOutReset)(HMIDIOUT);
+extern MMRESULT(WINAPI* MMmidiOutSetVolume)(HMIDIOUT, DWORD);
+extern MMRESULT(WINAPI* MMmidiOutShortMsg)(HMIDIOUT, DWORD);
+extern MMRESULT(WINAPI* MMmidiOutUnprepareHeader)(HMIDIOUT, LPMIDIHDR, UINT);
+extern UINT(WINAPI* MMmidiOutGetNumDevs)();
+// MIDI out stuff
+
+// MIDI in stuff
+extern MMRESULT(WINAPI* MMmidiConnect)(HMIDI, HMIDIOUT, LPVOID);
+extern MMRESULT(WINAPI* MMmidiDisconnect)(HMIDI, HMIDIOUT, LPVOID);
+extern MMRESULT(WINAPI* MMmidiInAddBuffer)(HMIDIIN, LPMIDIHDR, UINT);
+extern MMRESULT(WINAPI* MMmidiInClose)(HMIDIIN);
+extern MMRESULT(WINAPI* MMmidiInGetDevCapsA)(UINT_PTR, LPMIDIINCAPSA, UINT);
+extern MMRESULT(WINAPI* MMmidiInGetDevCapsW)(UINT_PTR, LPMIDIINCAPSW, UINT);
+extern MMRESULT(WINAPI* MMmidiInGetErrorTextA)(MMRESULT, LPSTR, UINT);
+extern MMRESULT(WINAPI* MMmidiInGetErrorTextW)(MMRESULT, LPWSTR, UINT);
+extern MMRESULT(WINAPI* MMmidiInGetID)(HMIDIIN, LPUINT);
+extern MMRESULT(WINAPI* MMmidiInMessage)(HMIDIIN, UINT, DWORD_PTR, DWORD_PTR);
+extern MMRESULT(WINAPI* MMmidiInOpen)(LPHMIDIIN, UINT, DWORD_PTR, DWORD_PTR, DWORD);
+extern MMRESULT(WINAPI* MMmidiInPrepareHeader)(HMIDIIN, LPMIDIHDR, UINT);
+extern MMRESULT(WINAPI* MMmidiInReset)(HMIDIIN);
+extern MMRESULT(WINAPI* MMmidiInStart)(HMIDIIN);
+extern MMRESULT(WINAPI* MMmidiInStop)(HMIDIIN);
+extern MMRESULT(WINAPI* MMmidiInUnprepareHeader)(HMIDIIN, LPMIDIHDR, UINT);
+extern UINT(WINAPI* MMmidiInGetNumDevs)();
+// MIDI in stuff
+
+// Time related stuff
+extern DWORD(WINAPI* MMtimeGetTime)();
+extern MMRESULT(WINAPI* MMtimeBeginPeriod)(UINT);
+extern MMRESULT(WINAPI* MMtimeEndPeriod)(UINT);
+extern MMRESULT(WINAPI* MMtimeGetDevCaps)(LPTIMECAPS, UINT);
+extern MMRESULT(WINAPI* MMtimeGetSystemTime)(LPMMTIME, UINT);
+extern MMRESULT(WINAPI* MMtimeKillEvent)(UINT);
+extern MMRESULT(WINAPI* MMtimeSetEvent)(UINT, UINT, LPTIMECALLBACK, DWORD_PTR, UINT);
+// Time related stuff
+
+// Driver stuff
+
+extern HDRVR(WINAPI* MMOpenDriver)(_In_ LPCWSTR, _In_ LPCWSTR, _In_ LPARAM);
+extern LRESULT(WINAPI* MMCloseDriver)(_In_ HDRVR, _In_ LPARAM, _In_ LPARAM);
+extern LRESULT(WINAPI* MMSendDriverMessage)(_In_ HDRVR, _In_ UINT, _Inout_ LPARAM, _Inout_ LPARAM);
+extern BOOL(WINAPI* MMmmDrvInstall)(LPCSTR, LPCSTR, BOOL);
+extern DWORD(WINAPI* MMmmGetCurrentTask)();
+extern HMODULE(WINAPI* MMDrvGetModuleHandle)(_In_ HDRVR);
+extern HMODULE(WINAPI* MMGetDriverModuleHandle)(_In_ HDRVR);
+extern LRESULT(WINAPI* MMDefDriverProc)(DWORD_PTR, HDRVR, UINT, LONG, LONG);
+extern LRESULT(WINAPI* MMDriverCallback)(DWORD, DWORD, HDRVR, DWORD, DWORD, DWORD, DWORD);
+// Driver stuff
+
+// Game-related stuff
+extern MMRESULT(WINAPI* MMjoyConfigChanged)(DWORD);
+extern MMRESULT(WINAPI* MMjoyGetDevCapsA)(UINT, LPJOYCAPSA, UINT);
+extern MMRESULT(WINAPI* MMjoyGetDevCapsW)(UINT, LPJOYCAPSW, UINT);
+extern MMRESULT(WINAPI* MMjoyGetPos)(UINT, LPJOYINFO);
+extern MMRESULT(WINAPI* MMjoyGetPosEx)(UINT, LPJOYINFOEX);
+extern MMRESULT(WINAPI* MMjoyGetThreshold)(UINT, LPUINT);
+extern MMRESULT(WINAPI* MMjoySetThreshold)(UINT, UINT);
+extern MMRESULT(WINAPI* MMjoyReleaseCapture)(UINT);
+extern MMRESULT(WINAPI* MMjoySetCapture)(HWND, UINT, UINT, BOOL);
+extern UINT(WINAPI* MMjoyGetNumDevs)();
+// Game related stuff
+
+// MCI stuff
+extern BOOL(WINAPI* MMmciDriverNotify)(HWND, UINT, UINT);
+extern BOOL(WINAPI* MMmciExecute)(LPCSTR);
+extern BOOL(WINAPI* MMmciFreeCommandResource)(UINT);
+extern BOOL(WINAPI* MMmciGetErrorStringA)(DWORD, LPTSTR, UINT);
+extern BOOL(WINAPI* MMmciGetErrorStringW)(DWORD, LPWSTR, UINT);
+extern BOOL(WINAPI* MMmciSetDriverData)(UINT, DWORD);
+extern DWORD(WINAPI* MMmciGetDriverData)(UINT);
+extern HANDLE(WINAPI* MMmciGetCreatorTask)(MCIDEVICEID);
+extern MCIDEVICEID(WINAPI* MMmciGetDeviceIDA)(LPCTSTR);
+extern MCIDEVICEID(WINAPI* MMmciGetDeviceIDFromElementIDA)(DWORD, LPCTSTR);
+extern MCIDEVICEID(WINAPI* MMmciGetDeviceIDFromElementIDW)(DWORD, LPCWSTR);
+extern MCIDEVICEID(WINAPI* MMmciGetDeviceIDW)(LPCWSTR);
+extern MCIERROR(WINAPI* MMmciSendCommandA)(MCIDEVICEID, UINT, DWORD_PTR, DWORD_PTR);
+extern MCIERROR(WINAPI* MMmciSendCommandW)(MCIDEVICEID, UINT, DWORD_PTR, DWORD_PTR);
+extern MCIERROR(WINAPI* MMmciSendStringA)(LPCTSTR, LPTSTR, UINT, HANDLE);
+extern MCIERROR(WINAPI* MMmciSendStringW)(LPCWSTR, LPWSTR, UINT, HANDLE);
+extern UINT(WINAPI* MMmciDriverYield)(UINT);
+extern UINT(WINAPI* MMmciLoadCommandResource)(HINSTANCE, LPCWSTR, UINT);
+extern UINT(WINAPI* MMmciSetYieldProc)(MCIDEVICEID, YIELDPROC, DWORD);
+extern YIELDPROC(WINAPI* MMmciGetYieldProc)(MCIDEVICEID, LPDWORD);
+// MCI stuff
+
+// Mixer stuff
+extern DWORD(WINAPI* MMmixerMessage)(HMIXER, UINT, DWORD_PTR, DWORD_PTR);
+extern MMRESULT(WINAPI* MMmixerClose)(HMIXER);
+extern MMRESULT(WINAPI* MMmixerGetControlDetailsA)(HMIXEROBJ, LPMIXERCONTROLDETAILS, DWORD);
+extern MMRESULT(WINAPI* MMmixerGetControlDetailsW)(HMIXEROBJ, LPMIXERCONTROLDETAILS, DWORD);
+extern MMRESULT(WINAPI* MMmixerGetDevCapsA)(UINT_PTR, LPMIXERCAPSA, UINT);
+extern MMRESULT(WINAPI* MMmixerGetDevCapsW)(UINT_PTR, LPMIXERCAPSW, UINT);
+extern MMRESULT(WINAPI* MMmixerGetID)(HMIXEROBJ, UINT FAR*, DWORD);
+extern MMRESULT(WINAPI* MMmixerGetLineControlsA)(HMIXEROBJ, LPMIXERLINECONTROLSA, DWORD);
+extern MMRESULT(WINAPI* MMmixerGetLineControlsW)(HMIXEROBJ, LPMIXERLINECONTROLSW, DWORD);
+extern MMRESULT(WINAPI* MMmixerGetLineInfoA)(HMIXEROBJ, LPMIXERLINEA, DWORD);
+extern MMRESULT(WINAPI* MMmixerGetLineInfoW)(HMIXEROBJ, LPMIXERLINEW, DWORD);
+extern MMRESULT(WINAPI* MMmixerOpen)(LPHMIXER, UINT, DWORD_PTR, DWORD_PTR, DWORD);
+extern MMRESULT(WINAPI* MMmixerSetControlDetails)(HMIXEROBJ, LPMIXERCONTROLDETAILS, DWORD);
+extern UINT(WINAPI* MMmixerGetNumDevs)();
+// Mixer stuff
+
+// MMIO stuff
+extern FOURCC(WINAPI* MMmmioStringToFOURCCA)(LPCTSTR, UINT);
+extern FOURCC(WINAPI* MMmmioStringToFOURCCW)(LPCWSTR, UINT);
+extern LONG(WINAPI* MMmmioRead)(HMMIO, HPSTR, LONG);
+extern LONG(WINAPI* MMmmioSeek)(HMMIO, LONG, INT);
+extern LONG(WINAPI* MMmmioWrite)(HMMIO, char _huge*, LONG);
+extern LPMMIOPROC(WINAPI* MMmmioInstallIOProcA)(FOURCC, LPMMIOPROC, DWORD);
+extern LPMMIOPROC(WINAPI* MMmmioInstallIOProcW)(FOURCC, LPMMIOPROC, DWORD);
+extern LRESULT(WINAPI* MMmmioSendMessage)(HMMIO, UINT, LPARAM, LPARAM);
+extern MMRESULT(WINAPI* MMmmioAdvance)(HMMIO, LPMMIOINFO, UINT);
+extern MMRESULT(WINAPI* MMmmioAscend)(HMMIO, LPMMCKINFO, UINT);
+extern MMRESULT(WINAPI* MMmmioClose)(HMMIO, UINT);
+extern MMRESULT(WINAPI* MMmmioCreateChunk)(HMMIO, LPMMCKINFO, UINT);
+extern MMRESULT(WINAPI* MMmmioDescend)(HMMIO, LPMMCKINFO, const MMCKINFO*, UINT);
+extern MMRESULT(WINAPI* MMmmioFlush)(HMMIO, UINT);
+extern MMRESULT(WINAPI* MMmmioGetInfo)(HMMIO, LPMMIOINFO, UINT);
+extern MMRESULT(WINAPI* MMmmioOpenA)(LPTSTR, LPMMIOINFO, DWORD);
+extern MMRESULT(WINAPI* MMmmioOpenW)(LPWSTR, LPMMIOINFO, DWORD);
+extern MMRESULT(WINAPI* MMmmioRenameA)(LPCTSTR, LPCTSTR, const LPMMIOINFO, DWORD);
+extern MMRESULT(WINAPI* MMmmioRenameW)(LPCWSTR, LPCWSTR, const LPMMIOINFO, DWORD);
+extern MMRESULT(WINAPI* MMmmioSetBuffer)(HMMIO, LPSTR, LONG, UINT);
+extern MMRESULT(WINAPI* MMmmioSetInfo)(HMMIO, LPMMIOINFO, UINT);
+// MMIO stuff
+
+// MM stuff
+extern BOOL(WINAPI* MMmmTaskSignal)(DWORD);
+extern UINT(WINAPI* MMmmTaskCreate)(LPTASKCALLBACK, HANDLE, DWORD_PTR);
+extern VOID(WINAPI* MMmmTaskBlock)(DWORD);
+extern VOID(WINAPI* MMmmTaskYield)();
+// MM stuff
+
+// PlaySound stuff
+extern BOOL(WINAPI* MMPlaySound)(LPCSTR, HMODULE, DWORD);
+extern BOOL(WINAPI* MMPlaySoundA)(LPCTSTR, HMODULE, DWORD);
+extern BOOL(WINAPI* MMPlaySoundW)(LPCWSTR, HMODULE, DWORD);
+extern BOOL(WINAPI* MMsndPlaySoundA)(LPCTSTR, UINT);
+extern BOOL(WINAPI* MMsndPlaySoundW)(LPCWSTR, UINT);
+// PlaySound stuff
+
+// Aux stuff
+extern DWORD(WINAPI* MMauxOutMessage)(UINT, UINT, DWORD_PTR, DWORD_PTR);
+extern MMRESULT(WINAPI* MMauxGetDevCapsA)(UINT_PTR, LPAUXCAPSA, UINT);
+extern MMRESULT(WINAPI* MMauxGetDevCapsW)(UINT_PTR, LPAUXCAPSW, UINT);
+extern MMRESULT(WINAPI* MMauxGetVolume)(UINT, LPDWORD);
+extern MMRESULT(WINAPI* MMauxSetVolume)(UINT, DWORD);
+extern UINT(WINAPI* MMauxGetNumDevs)();
+// Aux stuff
+
+// Wave out stuff
+extern DWORD(WINAPI* MMwaveOutMessage)(HWAVEOUT, UINT, DWORD_PTR, DWORD_PTR);
+extern MMRESULT(WINAPI* MMwaveOutAddBuffer)(HWAVEOUT, LPWAVEHDR, UINT);
+extern MMRESULT(WINAPI* MMwaveOutBreakLoop)(HWAVEOUT);
+extern MMRESULT(WINAPI* MMwaveOutClose)(HWAVEOUT);
+extern MMRESULT(WINAPI* MMwaveOutGetDevCapsA)(UINT_PTR, LPWAVEOUTCAPSA, UINT);
+extern MMRESULT(WINAPI* MMwaveOutGetDevCapsW)(UINT_PTR, LPWAVEOUTCAPSW, UINT);
+extern MMRESULT(WINAPI* MMwaveOutGetErrorTextA)(MMRESULT, LPTSTR, UINT);
+extern MMRESULT(WINAPI* MMwaveOutGetErrorTextW)(MMRESULT, LPWSTR, UINT);
+extern MMRESULT(WINAPI* MMwaveOutGetID)(HWAVEOUT, LPUINT);
+extern MMRESULT(WINAPI* MMwaveOutGetPitch)(HWAVEOUT, LPDWORD);
+extern MMRESULT(WINAPI* MMwaveOutGetPlaybackRate)(HWAVEOUT, LPDWORD);
+extern MMRESULT(WINAPI* MMwaveOutGetPosition)(HWAVEOUT, LPMMTIME, UINT);
+extern MMRESULT(WINAPI* MMwaveOutGetVolume)(HWAVEOUT, LPDWORD);
+extern MMRESULT(WINAPI* MMwaveOutOpen)(LPHWAVEOUT, UINT, LPCWAVEFORMATEX, DWORD_PTR, DWORD_PTR, DWORD);
+extern MMRESULT(WINAPI* MMwaveOutPrepareHeader)(HWAVEOUT, LPWAVEHDR, UINT);
+extern MMRESULT(WINAPI* MMwaveOutReset)(HWAVEOUT);
+extern MMRESULT(WINAPI* MMwaveOutRestart)(HWAVEOUT);
+extern MMRESULT(WINAPI* MMwaveOutPause)(HWAVEOUT);
+extern MMRESULT(WINAPI* MMwaveOutSetPitch)(HWAVEOUT, DWORD);
+extern MMRESULT(WINAPI* MMwaveOutSetPlaybackRate)(HWAVEOUT, DWORD);
+extern MMRESULT(WINAPI* MMwaveOutSetVolume)(HWAVEOUT, DWORD);
+extern MMRESULT(WINAPI* MMwaveOutStart)(HWAVEOUT);
+extern MMRESULT(WINAPI* MMwaveOutStop)(HWAVEOUT);
+extern MMRESULT(WINAPI* MMwaveOutUnprepareHeader)(HWAVEOUT, LPWAVEHDR, UINT);
+extern MMRESULT(WINAPI* MMwaveOutWrite)(HWAVEOUT, LPWAVEHDR, UINT);
+extern UINT(WINAPI* MMwaveOutGetNumDevs)();
+// Wave out stuff
+
+// Wave in stuff
+extern DWORD(WINAPI* MMwaveInMessage)(HWAVEIN, UINT, DWORD_PTR, DWORD_PTR);
+extern MMRESULT(WINAPI* MMwaveInAddBuffer)(HWAVEIN, LPWAVEHDR, UINT);
+extern MMRESULT(WINAPI* MMwaveInClose)(HWAVEIN);
+extern MMRESULT(WINAPI* MMwaveInGetDevCapsA)(UINT_PTR, LPWAVEINCAPSA, UINT);
+extern MMRESULT(WINAPI* MMwaveInGetDevCapsW)(UINT_PTR, LPWAVEINCAPSW, UINT);
+extern MMRESULT(WINAPI* MMwaveInGetErrorTextA)(MMRESULT, LPTSTR, UINT);
+extern MMRESULT(WINAPI* MMwaveInGetErrorTextW)(MMRESULT, LPWSTR, UINT);
+extern MMRESULT(WINAPI* MMwaveInGetID)(HWAVEIN, LPUINT);
+extern MMRESULT(WINAPI* MMwaveInGetPosition)(HWAVEIN, LPMMTIME, UINT);
+extern MMRESULT(WINAPI* MMwaveInOpen)(LPHWAVEIN, UINT, LPCWAVEFORMATEX, DWORD_PTR, DWORD_PTR, DWORD);
+extern MMRESULT(WINAPI* MMwaveInPrepareHeader)(HWAVEIN, LPWAVEHDR, UINT);
+extern MMRESULT(WINAPI* MMwaveInReset)(HWAVEIN);
+extern MMRESULT(WINAPI* MMwaveInStart)(HWAVEIN);
+extern MMRESULT(WINAPI* MMwaveInStop)(HWAVEIN);
+extern MMRESULT(WINAPI* MMwaveInUnprepareHeader)(HWAVEIN, LPWAVEHDR, UINT);
+extern UINT(WINAPI* MMwaveInGetNumDevs)();
+extern UINT(WINAPI mmsystemGetVersion)();
+// Wave in stuff
+
+#ifdef _M_IX86
+// Legacy 16-bit functions
+extern MMRESULT(WINAPI* MMaux32Message)(UINT_PTR, UINT, DWORD_PTR, DWORD_PTR, DWORD_PTR);
+extern MMRESULT(WINAPI* MMjoy32Message)(UINT_PTR, UINT, DWORD_PTR, DWORD_PTR, DWORD_PTR);
+extern MMRESULT(WINAPI* MMmci32Message)(UINT_PTR, UINT, DWORD_PTR, DWORD_PTR, DWORD_PTR);
+extern MMRESULT(WINAPI* MMmid32Message)(UINT_PTR, UINT, DWORD_PTR, DWORD_PTR, DWORD_PTR);
+extern MMRESULT(WINAPI* MMmod32Message)(UINT_PTR, UINT, DWORD_PTR, DWORD_PTR, DWORD_PTR);
+extern MMRESULT(WINAPI* MMmxd32Message)(UINT_PTR, UINT, DWORD_PTR, DWORD_PTR, DWORD_PTR);
+extern MMRESULT(WINAPI* MMtid32Message)(UINT_PTR, UINT, DWORD_PTR, DWORD_PTR, DWORD_PTR);
+extern MMRESULT(WINAPI* MMwid32Message)(UINT_PTR, UINT, DWORD_PTR, DWORD_PTR, DWORD_PTR);
+extern MMRESULT(WINAPI* MMwod32Message)(UINT_PTR, UINT, DWORD_PTR, DWORD_PTR, DWORD_PTR);
+// Legacy 16-bit functions
+#endif
+
+#endif

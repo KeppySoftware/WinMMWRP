@@ -466,11 +466,12 @@ extern "C" {
 
 #define TASKERR_NOTASKSUPPORT 1
 #define TASKERR_OUTOFMEMORY   2
-	UINT     WINAPI mmTaskCreate(LPTASKCALLBACK, HANDLE*, DWORD_PTR);
-	VOID     WINAPI mmTaskBlock(DWORD);
-	BOOL     WINAPI mmTaskSignal(DWORD);
-	VOID     WINAPI mmTaskYield(VOID);
-	DWORD    WINAPI mmGetCurrentTask(VOID);
+	UINT	WINAPI mmTaskCreate(LPTASKCALLBACK, HANDLE*, DWORD_PTR);
+	VOID	WINAPI mmTaskBlock(DWORD);
+	BOOL	WINAPI mmTaskSignal(DWORD);
+	VOID	WINAPI mmTaskYield(VOID);
+	DWORD	WINAPI mmGetCurrentTask(VOID);
+	BOOL	WINAPI mciExecute(LPCSTR);
 
 #include <poppack.h>
 
