@@ -35,9 +35,6 @@
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="dllmain.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="OmniMIDI.cpp">
       <Filter>Source Files\KDMAPI</Filter>
     </ClCompile>
@@ -50,9 +47,16 @@
     <ClCompile Include="WinMM.cpp">
       <Filter>Source Files\KDMAPI</Filter>
     </ClCompile>
+    <ClCompile Include="WMMEntry.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <None Include="WinMM.def">
+      <Filter>Source Files</Filter>
+    </None>
+    <None Include="packages.config" />
+    <None Include="WinMMi386.def">
       <Filter>Source Files</Filter>
     </None>
   </ItemGroup>

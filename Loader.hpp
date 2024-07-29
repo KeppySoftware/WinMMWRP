@@ -8,14 +8,29 @@
 #include "Utils.hpp"
 
 #ifndef _M_IX86 
-#define WINMMIMPORTS 170
+#define WINMMIMPORTS 177
 #else
-#define WINMMIMPORTS 179
+#define WINMMIMPORTS 186
+#endif
+
+#ifdef PURE_WRAPPER
+typedef struct {
+	char gap0[0x50];
+	MMRESULT(WINAPI* modMessage)(UINT, UINT, DWORD_PTR, DWORD_PTR, DWORD_PTR);
+} midi_device_internal_vtbl_t;
+
+typedef struct {
+	midi_device_internal_vtbl_t* vtbl;
+	UINT id;
+	char gapC[4];
+	DWORD_PTR user_ptr;
+} midi_device_internal_t;
 #endif
 
 namespace OmniMIDI {
 	class Loader {
 	protected:
+#ifndef PURE_WRAPPER
 		Lib* KDMAPILib = nullptr;
 		LibImport OMLibImports[16] = {
 			ImpFunc(modMessage),
@@ -36,6 +51,7 @@ namespace OmniMIDI {
 			ImpFunc(timeGetTime64)
 		};
 		size_t OMLibImportsSize = sizeof(OMLibImports) / sizeof(OMLibImports[0]);
+#endif
 
 		Lib* WMMBaseLib = nullptr;
 		LibImport WMMBaseLibImps[WINMMIMPORTS] = {
@@ -209,6 +225,13 @@ namespace OmniMIDI {
 			ImpMMFunc(waveOutSetVolume),
 			ImpMMFunc(waveOutUnprepareHeader),
 			ImpMMFunc(waveOutWrite),
+			ImpMMFunc(timeBeginPeriod),
+			ImpMMFunc(timeEndPeriod),
+			ImpMMFunc(timeGetDevCaps),
+			ImpMMFunc(timeGetSystemTime),
+			ImpMMFunc(timeGetTime),
+			ImpMMFunc(timeKillEvent),
+			ImpMMFunc(timeSetEvent),
 
 		#ifdef _M_IX86
 			ImpMMFunc(aux32Message),
@@ -237,9 +260,12 @@ namespace OmniMIDI {
 		size_t WinMMLibImportsSize = sizeof(WinMMLibImports) / sizeof(WinMMLibImports[0]);
 
 	public:
+#ifndef PURE_WRAPPER
 		bool LoadKDMAPIModule();
 		bool FreeKDMAPIModule();
 		bool IsKDMAPILoaded();
+#endif
+
 		bool LoadWinMMModule();
 		bool FreeWinMMModule();
 	};

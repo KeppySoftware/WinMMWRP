@@ -1,5 +1,6 @@
 #include "Loader.hpp"
 
+#ifndef PURE_WRAPPER
 bool OmniMIDI::Loader::LoadKDMAPIModule() {
 	auto ptr = (LibImport*)OMLibImports;
 
@@ -26,6 +27,7 @@ bool OmniMIDI::Loader::FreeKDMAPIModule() {
 bool OmniMIDI::Loader::IsKDMAPILoaded() {
 	return KDMAPILib->IsOnline();
 }
+#endif
 
 bool OmniMIDI::Loader::LoadWinMMModule() {
 	SysPath Utils;

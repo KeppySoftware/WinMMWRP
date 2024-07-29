@@ -47,11 +47,16 @@ LRESULT WINAPI WRP_DefDriverProc(DWORD_PTR dwDId, HDRVR drv, UINT msg, LONG lP1,
 }
 
 UINT WINAPI WRP_midiOutGetNumDevs() {
+#ifndef PURE_WRAPPER
 	auto n = MMmidiOutGetNumDevs() + 1;
 	return n;
+#else
+	return MMmidiOutGetNumDevs(); 
+#endif
 }
 
 MMRESULT WINAPI WRP_midiOutGetDevCapsW(UINT_PTR uDeviceID, LPMIDIOUTCAPSW lpCaps, UINT uSize) {
+#ifndef PURE_WRAPPER
 	memset(lpCaps, 0, min(uSize, sizeof(MIDIOUTCAPSW)));
 
 	if (uDeviceID == OMID) {
@@ -81,54 +86,47 @@ MMRESULT WINAPI WRP_midiOutGetDevCapsW(UINT_PTR uDeviceID, LPMIDIOUTCAPSW lpCaps
 	}
 
 	auto v = DEVICEOVERRIDE;
+#else
+	auto v = uDeviceID;
+#endif
+	
 	auto r = MMmidiOutGetDevCapsW(v, lpCaps, uSize);
 	return r;
 }
 
 MMRESULT WINAPI WRP_midiOutGetDevCapsA(UINT_PTR uDeviceID, LPMIDIOUTCAPSA lpCaps, UINT uSize) {
-	if (uDeviceID == OMID) {
-		MIDIOUTCAPSA myCaps;
-		MIDIOUTCAPSW myCapsW;
-		UINT ret;
+	MIDIOUTCAPSA myCaps;
+	MIDIOUTCAPSW myCapsW;
+	UINT ret;
 
-		if (!lpCaps || uSize != sizeof(MIDIOUTCAPSA))
-			return MMSYSERR_INVALPARAM;
+	if (!lpCaps || uSize != sizeof(MIDIOUTCAPSA))
+		return MMSYSERR_INVALPARAM;
 
-		// Parse settings from OmniMIDI
-		ret = WRP_midiOutGetDevCapsW(0, &myCapsW, sizeof(MIDIOUTCAPSW));
+	// Parse settings from OmniMIDI
+	ret = WRP_midiOutGetDevCapsW(uDeviceID, &myCapsW, sizeof(MIDIOUTCAPSW));
 
-		if (ret == MMSYSERR_NOERROR) {
-			// Assign values
-			myCaps.wMid = myCapsW.wMid;
-			myCaps.wPid = myCapsW.wPid;
-			myCaps.wVoices = myCapsW.wVoices;
-			myCaps.wNotes = myCapsW.wNotes;
-			myCaps.wTechnology = myCapsW.wTechnology;
-			myCaps.wChannelMask = myCapsW.wChannelMask;
-			myCaps.dwSupport = myCapsW.dwSupport;
+	if (ret == MMSYSERR_NOERROR) {
+		// Assign values
+		myCaps.wMid = myCapsW.wMid;
+		myCaps.wPid = myCapsW.wPid;
+		myCaps.wVoices = myCapsW.wVoices;
+		myCaps.wNotes = myCapsW.wNotes;
+		myCaps.wTechnology = myCapsW.wTechnology;
+		myCaps.wChannelMask = myCapsW.wChannelMask;
+		myCaps.dwSupport = myCapsW.dwSupport;
 
-			// Convert wchar_t* to char*
-			wcstombs(myCaps.szPname, myCapsW.szPname, MAXPNAMELEN);
+		// Convert wchar_t* to char*
+		wcstombs(myCaps.szPname, myCapsW.szPname, MAXPNAMELEN);
 
-			// Copy values to pointer, and return 0
-			memcpy(lpCaps, &myCaps, min(uSize, sizeof(myCaps)));
-		}
-
-		return ret;
+		// Copy values to pointer, and return 0
+		memcpy(lpCaps, &myCaps, min(uSize, sizeof(myCaps)));
 	}
 
-	return MMmidiOutGetDevCapsA(DEVICEOVERRIDE, lpCaps, uSize);
-}
-
-MMRESULT WINAPI WRP_midiOutShortMsg(HMIDIOUT hMidiOut, DWORD dwMsg) {
-	if ((HMIDI)hMidiOut != OMDummy)
-		return MMmidiOutShortMsg(hMidiOut, dwMsg);
-
-	SendDirectData(dwMsg);
-	return MMSYSERR_NOERROR;
+	return ret;
 }
 
 MMRESULT WINAPI WRP_midiOutOpen(LPHMIDIOUT lphmo, UINT uDeviceID, DWORD_PTR dwCallback, DWORD_PTR dwCallbackInstance, DWORD dwFlags) {
+#ifndef PURE_WRAPPER
 	if (uDeviceID == OMID) {
 		if (ldr->LoadKDMAPIModule()) {
 			if (*lphmo == (HMIDIOUT)OMDummy)
@@ -160,9 +158,13 @@ MMRESULT WINAPI WRP_midiOutOpen(LPHMIDIOUT lphmo, UINT uDeviceID, DWORD_PTR dwCa
 	}
 
 	return MMmidiOutOpen(lphmo, DEVICEOVERRIDE, dwCallback, dwCallbackInstance, dwFlags);
+#else
+	return MMmidiOutOpen(lphmo, uDeviceID, dwCallback, dwCallbackInstance, dwFlags);
+#endif
 }
 
 MMRESULT WINAPI WRP_midiOutClose(HMIDIOUT hMidiOut) {
+#ifndef PURE_WRAPPER
 	if (OMCHECK) {
 		if (ldr->IsKDMAPILoaded()) {
 			if (!TerminateKDMAPIStream()) return MMSYSERR_NOMEM;
@@ -182,34 +184,56 @@ MMRESULT WINAPI WRP_midiOutClose(HMIDIOUT hMidiOut) {
 
 		return MMSYSERR_NOERROR;
 	}
+#endif
 
 	return MMmidiOutClose(hMidiOut);
 }
 
 MMRESULT WINAPI WRP_midiOutReset(HMIDIOUT hMidiOut) {
+#ifndef PURE_WRAPPER
 	if (OMCHECK) {
 		ResetKDMAPIStream();
 		return MMSYSERR_NOERROR;
 	}
+#endif
 
 	return MMmidiOutReset(hMidiOut);
 }
 
 MMRESULT WINAPI WRP_midiOutPrepareHeader(HMIDIOUT hMidiOut, LPMIDIHDR lpMidiOutHdr, UINT uSize) {
+#ifndef PURE_WRAPPER
 	if (OMCHECK)
 		PrepareLongData(lpMidiOutHdr, uSize);
+#endif
 
 	return MMmidiOutPrepareHeader(hMidiOut, lpMidiOutHdr, uSize);
 }
 
 MMRESULT WINAPI WRP_midiOutUnprepareHeader(HMIDIOUT hMidiOut, LPMIDIHDR lpMidiOutHdr, UINT uSize) {
+#ifndef PURE_WRAPPER
 	if (OMCHECK)
 		UnprepareLongData(lpMidiOutHdr, uSize);
+#endif
 
 	return MMmidiOutUnprepareHeader(hMidiOut, lpMidiOutHdr, uSize);
 }
 
+MMRESULT WINAPI WRP_midiOutShortMsg(HMIDIOUT hMidiOut, DWORD dwMsg) {
+#ifndef PURE_WRAPPER
+	if (OMCHECK) {
+		SendDirectData(dwMsg);
+		return MMSYSERR_NOERROR;
+	}
+
+	return MMmidiOutShortMsg(hMidiOut, dwMsg);
+#else
+	auto dev = (midi_device_internal_t*)hMidiOut;
+	return dev->vtbl->modMessage(dev->id, MODM_DATA, dev->user_ptr, (DWORD_PTR)dwMsg, 0);
+#endif
+}
+
 MMRESULT WINAPI WRP_midiOutLongMsg(HMIDIOUT hMidiOut, LPMIDIHDR lpMidiOutHdr, UINT uSize) {
+#ifndef PURE_WRAPPER
 	if (OMCHECK) {
 		// Forward the buffer to KDMAPI
 		MMRESULT Ret = SendDirectLongData(lpMidiOutHdr, uSize);
@@ -219,36 +243,45 @@ MMRESULT WINAPI WRP_midiOutLongMsg(HMIDIOUT hMidiOut, LPMIDIHDR lpMidiOutHdr, UI
 
 		return Ret;
 	}
+#endif
 
 	return MMmidiOutLongMsg(hMidiOut, lpMidiOutHdr, uSize);
 }
 
 MMRESULT WINAPI WRP_midiOutMessage(HMIDIOUT hMidiOut, UINT uMsg, DWORD_PTR dw1, DWORD_PTR dw2) {
+#ifndef PURE_WRAPPER
 	if (OMCHECK)
 		return MMSYSERR_NOERROR;
+#endif
 
 	return MMmidiOutMessage(hMidiOut, uMsg, dw1, dw2);
 }
 
 MMRESULT WINAPI WRP_midiOutSetVolume(HMIDIOUT hMidiOut, DWORD dwVolume) {
+#ifndef PURE_WRAPPER
 	if (OMCHECK)
 		return modMessage(0, MODM_SETVOLUME, OMUser, dwVolume, 0);
+#endif
 
 	return MMmidiOutSetVolume(hMidiOut, dwVolume);
 }
 
 MMRESULT WINAPI WRP_midiOutGetVolume(HMIDIOUT hMidiOut, LPDWORD lpdwVolume) {
+#ifndef PURE_WRAPPER
 	if (OMCHECK)
 		return modMessage(0, MODM_GETVOLUME, OMUser, (DWORD_PTR)lpdwVolume, 0);
+#endif
 
 	return MMmidiOutGetVolume(hMidiOut, lpdwVolume);
 }
 
 MMRESULT WINAPI WRP_midiOutGetID(HMIDIOUT hMidiOut, LPUINT puDeviceID) {
+#ifndef PURE_WRAPPER
 	UINT Dummy = 0;
 	MMRESULT ret = MMmidiOutGetID(hMidiOut, &Dummy);
 	if (ret == MMSYSERR_NOERROR) {
 		switch (Dummy) {
+
 		case MIDI_MAPPER:
 			*puDeviceID = MIDI_MAPPER;
 			break;
@@ -258,23 +291,31 @@ MMRESULT WINAPI WRP_midiOutGetID(HMIDIOUT hMidiOut, LPUINT puDeviceID) {
 		}
 	}
 	return ret;
+#else
+	return MMmidiOutGetID(hMidiOut, puDeviceID);
+#endif
 }
 
 MMRESULT WINAPI WRP_midiOutCachePatches(HMIDIOUT hMidiOut, UINT wPatch, LPWORD lpPatchArray, UINT wFlags) {
+#ifndef PURE_WRAPPER
 	if (OMCHECK)
 		return MMSYSERR_NOERROR;
+#endif
 
 	return MMmidiOutCachePatches(hMidiOut, wPatch, lpPatchArray, wFlags);
 }
 
 MMRESULT WINAPI WRP_midiOutCacheDrumPatches(HMIDIOUT hMidiOut, UINT wPatch, LPWORD lpKeyArray, UINT wFlags) {
+#ifndef PURE_WRAPPER
 	if (OMCHECK)
 		return MMSYSERR_NOERROR;
+#endif
 
 	return MMmidiOutCacheDrumPatches(hMidiOut, wPatch, lpKeyArray, wFlags);
 }
 
 MMRESULT WINAPI WRP_midiStreamOpen(LPHMIDISTRM lphStream, LPUINT puDeviceID, DWORD cMidi, DWORD_PTR dwCallback, DWORD_PTR dwCallbackInstance, DWORD fdwOpen) {
+#ifndef PURE_WRAPPER
 	if (puDeviceID == OMID) {
 		if (*lphStream == (HMIDISTRM)OMDummy)
 			return MMSYSERR_ALLOCATED;
@@ -299,11 +340,13 @@ MMRESULT WINAPI WRP_midiStreamOpen(LPHMIDISTRM lphStream, LPUINT puDeviceID, DWO
 
 		return MMSYSERR_NOERROR;
 	}
+#endif
 
 	return MMmidiStreamOpen(lphStream, puDeviceID, cMidi, dwCallback, dwCallbackInstance, fdwOpen);
 }
 
 MMRESULT WINAPI WRP_midiStreamClose(HMIDISTRM hStream) {
+#ifndef PURE_WRAPPER
 	if (OMCHECKS) {
 		if (!TerminateKDMAPIStream()) 
 			return MMSYSERR_NOMEM;
@@ -313,48 +356,79 @@ MMRESULT WINAPI WRP_midiStreamClose(HMIDISTRM hStream) {
 
 		return MMSYSERR_NOERROR;
 	}
+#endif
 
 	return MMmidiStreamClose(hStream);
 }
 
 MMRESULT WINAPI WRP_midiStreamOut(HMIDISTRM hStream, LPMIDIHDR lpMidiOutHdr, UINT uSize) {
+#ifndef PURE_WRAPPER
 	if (OMCHECKS)
 		return modMessage(0, MODM_STRMDATA, OMUser, (DWORD_PTR)lpMidiOutHdr, (DWORD_PTR)uSize);
+#endif
 
 	return MMmidiStreamOut(hStream, lpMidiOutHdr, uSize);
 }
 
 MMRESULT WINAPI WRP_midiStreamPause(HMIDISTRM hStream) {
+#ifndef PURE_WRAPPER
 	if (OMCHECKS)
 		return modMessage(0, MODM_PAUSE, OMUser, 0, 0);
+#endif
 
 	return MMmidiStreamPause(hStream);
 }
 
 MMRESULT WINAPI WRP_midiStreamRestart(HMIDISTRM hStream) {
+#ifndef PURE_WRAPPER
 	if (OMCHECKS)
 		return modMessage(0, MODM_RESTART, OMUser, 0, 0);
+#endif
 
 	return MMmidiStreamRestart(hStream);
 }
 
 MMRESULT WINAPI WRP_midiStreamStop(HMIDISTRM hStream) {
+#ifndef PURE_WRAPPER
 	if (OMCHECKS)
 		return modMessage(0, MODM_STOP, OMUser, 0, 0);
+#endif
 
 	return MMmidiStreamStop(hStream);
 }
 
 MMRESULT WINAPI WRP_midiStreamProperty(HMIDISTRM hStream, LPBYTE lppropdata, DWORD dwProperty) {
+#ifndef PURE_WRAPPER
 	if (OMCHECKS)
 		return modMessage(0, MODM_PROPERTIES, OMUser, (DWORD_PTR)lppropdata, (DWORD)dwProperty);
+#endif
 
 	return MMmidiStreamProperty(hStream, lppropdata, dwProperty);
 }
 
 MMRESULT WINAPI WRP_midiStreamPosition(HMIDISTRM hStream, LPMMTIME pmmt, UINT cbmmt) {
+#ifndef PURE_WRAPPER
 	if (OMCHECKS)
 		return modMessage(0, MODM_GETPOS, OMUser, (DWORD_PTR)pmmt, (DWORD)cbmmt);
+#endif
 
 	return MMmidiStreamPosition(hStream, pmmt, cbmmt);
+}
+
+DWORD WINAPI WRP_mixerGetNumDevs() {
+#ifdef CODPATCH
+	DWORD ret = MMmixerGetNumDevs();
+	return ret > 15 ? 15 : ret;
+#else
+	return MMmixerGetNumDevs();
+#endif
+}
+
+DWORD WINAPI WRP_waveInGetNumDevs() {
+#ifdef CODPATCH
+	DWORD ret = MMwaveInGetNumDevs();
+	return ret > 15 ? 15 : ret;
+#else
+	return MMwaveInGetNumDevs();
+#endif
 }
