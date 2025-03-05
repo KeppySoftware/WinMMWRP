@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include "Common.hpp"
 #include "OmniMIDI.hpp"
 #include "WinMM.hpp"
 #include "Utils.hpp"
@@ -13,19 +14,25 @@
 #define WINMMIMPORTS 186
 #endif
 
-#ifdef PURE_WRAPPER
 typedef struct {
+#ifdef _M_IX86
+	char gap0[0x3C];
+#else
 	char gap0[0x50];
+#endif
 	MMRESULT(WINAPI* modMessage)(UINT, UINT, DWORD_PTR, DWORD_PTR, DWORD_PTR);
 } midi_device_internal_vtbl_t;
 
 typedef struct {
 	midi_device_internal_vtbl_t* vtbl;
 	UINT id;
+#ifdef _M_IX86
 	char gapC[4];
+#endif
 	DWORD_PTR user_ptr;
 } midi_device_internal_t;
-#endif
+
+using namespace OMShared;
 
 namespace OmniMIDI {
 	class Loader {

@@ -5,7 +5,7 @@ bool OmniMIDI::Loader::LoadKDMAPIModule() {
 	auto ptr = (LibImport*)OMLibImports;
 
 	if (!KDMAPILib)
-		KDMAPILib = new Lib(L"OmniMIDI", &ptr, OMLibImportsSize);
+		KDMAPILib = new Lib("OmniMIDI", &ptr, OMLibImportsSize);
 
 	if (KDMAPILib->LoadLib()) {
 		return true;
@@ -30,20 +30,20 @@ bool OmniMIDI::Loader::IsKDMAPILoaded() {
 #endif
 
 bool OmniMIDI::Loader::LoadWinMMModule() {
-	SysPath Utils;
+	Funcs Utils;
 	int swp = 0;
-	wchar_t SysDir[MAX_PATH] = { 0 };
+	char SysDir[MAX_PATH] = { 0 };
 
 	auto ptr = (LibImport*)WMMBaseLibImps;
 	auto bptr = (LibImport*)WinMMLibImports;
 
 	if (Utils.GetFolderPath(FIDs::System, SysDir, sizeof(SysDir))) {
 		if (WMMBaseLib == nullptr) {
-			WMMBaseLib = new Lib(L"winmmbase", &ptr, WMMBaseLibImpSize);
+			WMMBaseLib = new Lib("winmmbase", &ptr, WMMBaseLibImpSize);
 
 			if (!WMMBaseLib->LoadLib(SysDir)) {
 				delete WMMBaseLib;
-				WMMBaseLib = new Lib(L"winmm", &ptr, WMMBaseLibImpSize);
+				WMMBaseLib = new Lib("winmm", &ptr, WMMBaseLibImpSize);
 
 				if (WMMBaseLib->LoadLib(SysDir)) {
 					return true;
@@ -53,7 +53,7 @@ bool OmniMIDI::Loader::LoadWinMMModule() {
 		}
 
 		if (WinMMLib == nullptr) {
-			WinMMLib = new Lib(L"winmm", &bptr, WinMMLibImportsSize);
+			WinMMLib = new Lib("winmm", &bptr, WinMMLibImportsSize);
 
 			if (WinMMLib->LoadLib(SysDir)) {
 				return true;

@@ -1,7 +1,7 @@
 LIBRARY	winmm.dll
 
 EXPORTS
-	mmsystemGetVersion
+	mmsystemGetVersion				= WINMM_mmsystemGetVersion
 	CloseDriver						= WINMM_CloseDriver
 	DefDriverProc					= WINMM_DefDriverProc
 	DriverCallback					= WINMM_DriverCallback
@@ -102,7 +102,7 @@ EXPORTS
 	mixerGetLineControlsW			= WINMM_mixerGetLineControlsW
 	mixerGetLineInfoA				= WINMM_mixerGetLineInfoA
 	mixerGetLineInfoW				= WINMM_mixerGetLineInfoW
-	mixerGetNumDevs					= WRP_mixerGetNumDevs
+	mixerGetNumDevs					= WINMM_mixerGetNumDevs
 	mixerMessage					= WINMM_mixerMessage
 	mixerOpen						= WINMM_mixerOpen
 	mixerSetControlDetails			= WINMM_mixerSetControlDetails
@@ -148,7 +148,7 @@ EXPORTS
 	waveInGetErrorTextA				= WINMM_waveInGetErrorTextA
 	waveInGetErrorTextW				= WINMM_waveInGetErrorTextW
 	waveInGetID						= WINMM_waveInGetID
-	waveInGetNumDevs				= WRP_waveInGetNumDevs
+	waveInGetNumDevs				= WINMM_waveInGetNumDevs
 	waveInGetPosition				= WINMM_waveInGetPosition
 	waveInMessage					= WINMM_waveInMessage
 	waveInOpen						= WINMM_waveInOpen

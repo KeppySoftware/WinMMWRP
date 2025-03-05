@@ -15,7 +15,7 @@
 #define MIDI_IO_PACKED	0x00000000L			// Legacy mode, used by most MIDI apps
 #define MIDI_IO_COOKED	0x00000002L			// Stream mode, used by some old MIDI apps (Such as GZDoom)
 
-#include <windows.h>
+#include "Common.hpp"
 #include "mmddk.h"
 
 // MIDI out stuff
