@@ -23,8 +23,8 @@ option_end()
 target("WinMMWRP")
 	set_kind("shared")
 	set_basename("winmm")
+	set_options("purewrapper")
 	set_options("useclang")
-	set_options("nonfree")
 
 	if is_mode("debug") then
 		add_defines("DEBUG")
