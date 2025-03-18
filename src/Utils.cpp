@@ -32,7 +32,7 @@ bool OMShared::Lib::GetLibPath(char* outPath) {
 		return false;
 
 	if (!skip && !Utils.DoesFileExist(outPath)) {
-		if (Utils.GetFolderPath(OMShared::FIDs::System, buf, MAX_PATH_LONG)) {
+		if (Utils.GetFolderPath(OMShared::FIDs::LibGeneric, buf, MAX_PATH_LONG)) {
 			printStatus = snprintf(outPath, MAX_PATH_LONG, "%s/" LIBEXP(TYPE), buf, Name);
 
 			if (printStatus == -1)
@@ -200,7 +200,7 @@ bool OMShared::Funcs::GetFolderPath(const FIDs FolderID, char* path, size_t szPa
 
 	switch (FolderID) {
 	case CurrentDirectory:
-	case System:
+	case LibGeneric:
 		id = FOLDERID_System;
 		break;
 	case UserFolder:
@@ -227,7 +227,7 @@ bool OMShared::Funcs::GetFolderPath(const FIDs FolderID, char* path, size_t szPa
 
 	switch (FolderID) {
 	case CurrentDirectory:
-	case System:
+	case LibGeneric:
 		csidl = CSIDL_SYSTEM;
 		break;
 	case UserFolder:
@@ -243,7 +243,7 @@ bool OMShared::Funcs::GetFolderPath(const FIDs FolderID, char* path, size_t szPa
 	const char* envPath = nullptr;
 
 	switch (FolderID) {
-	case System:
+	case LibGeneric:
 		envPath = "/usr/bin";
 	case UserFolder:
 		envPath = std::getenv("HOME");

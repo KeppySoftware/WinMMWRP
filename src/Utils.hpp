@@ -55,7 +55,7 @@
 namespace OMShared {
 	enum FIDs {
 		CurrentDirectory,
-		System,
+		LibGeneric,
 		UserFolder
 	};
 

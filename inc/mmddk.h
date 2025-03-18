@@ -440,6 +440,7 @@ extern "C" {
 		UINT			wType;			/* driver type (filled in by the driver) */
 	} MCI_OPEN_DRIVER_PARMSW, *LPMCI_OPEN_DRIVER_PARMSW;
 
+#ifndef _MMHPP
 	DWORD_PTR		WINAPI	mciGetDriverData(UINT uDeviceID);
 	BOOL			WINAPI	mciSetDriverData(UINT uDeviceID, DWORD_PTR dwData);
 	UINT			WINAPI	mciDriverYield(UINT uDeviceID);
@@ -450,6 +451,7 @@ extern "C" {
 		LPCWSTR lpResName, UINT uType);
 #endif
 	BOOL			WINAPI	mciFreeCommandResource(UINT uTable);
+#endif
 
 #define DCB_NULL		0x0000
 #define DCB_WINDOW		0x0001			/* dwCallback is a HWND */
@@ -459,19 +461,24 @@ extern "C" {
 #define DCB_TYPEMASK		0x0007
 #define DCB_NOSWITCH		0x0008			/* don't switch stacks for callback */
 
+#ifndef _MMHPP
 	BOOL APIENTRY DriverCallback(DWORD_PTR dwCallback, DWORD dwFlags,
 		HDRVR hDevice, DWORD dwMsg, DWORD_PTR dwUser, DWORD_PTR dwParam1, DWORD_PTR dwParam2);
+#endif
 
 	typedef VOID(*LPTASKCALLBACK)(DWORD_PTR dwInst);
 
 #define TASKERR_NOTASKSUPPORT 1
 #define TASKERR_OUTOFMEMORY   2
+
+#ifndef _MMHPP
 	UINT	WINAPI mmTaskCreate(LPTASKCALLBACK, HANDLE*, DWORD_PTR);
 	VOID	WINAPI mmTaskBlock(DWORD);
 	BOOL	WINAPI mmTaskSignal(DWORD);
 	VOID	WINAPI mmTaskYield(VOID);
 	DWORD	WINAPI mmGetCurrentTask(VOID);
 	BOOL	WINAPI mciExecute(LPCSTR);
+#endif
 
 #include <poppack.h>
 

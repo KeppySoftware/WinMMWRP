@@ -20,7 +20,7 @@ target("WinMMWRP")
 		set_optimize("none")
 	else	
 		add_defines("NDEBUG")
-		set_symbols("none")
+		set_symbols("hidden")
 		set_optimize("fastest")
 		set_strip("all")
 	end
@@ -39,16 +39,19 @@ target("WinMMWRP")
 		-- Remove lib prefix
 		set_prefixname("")
 
-		add_defines("_WIN32", "WINXPMODE", "_WIN32_WINNT=0x6000")
 		add_shflags("-static-libgcc", { force = true })
+		add_syslinks("uuid", "shlwapi", "ole32")
+		add_defines("_WIN32", "_WINXP", "_WIN32_WINNT=0x6000")
+
+		if is_mode("debug") then 
+			add_syslinks("-l:libwinpthread.a")
+		end
 
 		if is_arch("x86") then 
 			add_shflags("x86exports.def", { force = true })
 		elseif is_arch("x64") then 
 			add_shflags("amd64exports.def", { force = true })
 		end
-
-		add_syslinks("uuid", "shlwapi", "shell32", "user32", "ole32", "-l:libwinpthread.a")
 	else
 		remove_files("*.cpp")
 	end

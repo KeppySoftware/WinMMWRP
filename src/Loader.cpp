@@ -37,7 +37,7 @@ bool OmniMIDI::Loader::LoadWinMMModule() {
 	auto ptr = (LibImport*)WMMBaseLibImps;
 	auto bptr = (LibImport*)WinMMLibImports;
 
-	if (Utils.GetFolderPath(FIDs::System, SysDir, sizeof(SysDir))) {
+	if (Utils.GetFolderPath(FIDs::LibGeneric, SysDir, sizeof(SysDir))) {
 		if (WMMBaseLib == nullptr) {
 			WMMBaseLib = new Lib("winmmbase", &ptr, WMMBaseLibImpSize);
 

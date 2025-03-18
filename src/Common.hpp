@@ -13,7 +13,7 @@
 #define RANGE(variable, minv, maxv) ((variable) >= minv && (value) <= maxv)
 
 #ifdef _WIN64
-#define EXPORT	__declspec(dllexport) 
+#define EXPORT
 #define APICALL
 #else
 #define EXPORT
