@@ -31,7 +31,6 @@ bool OmniMIDI::Loader::IsKDMAPILoaded() {
 
 bool OmniMIDI::Loader::LoadWinMMModule() {
 	Funcs Utils;
-	int swp = 0;
 	char SysDir[MAX_PATH] = { 0 };
 
 	auto ptr = (LibImport*)WMMBaseLibImps;

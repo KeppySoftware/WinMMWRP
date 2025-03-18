@@ -59,7 +59,6 @@ bool OMShared::Lib::GetLibPath(char* outPath) {
 
 bool OMShared::Lib::LoadLib(char* CustomPath) {
 	char* libPath = nullptr;
-	char* finalPath = nullptr;
 
 	if (Funcs == nullptr || FuncsCount == 0)
 		return true;
@@ -84,8 +83,6 @@ bool OMShared::Lib::LoadLib(char* CustomPath) {
 		}
 	}
 
-	finalPath = (libPath == nullptr) ? (char*)Name : libPath;
-
 	if (Library != nullptr) {
 		for (size_t i = 0; i < FuncsCount; i++)
 			Funcs[i].SetPtr(Library, Funcs[i].GetName());
@@ -108,16 +105,7 @@ bool OMShared::Lib::UnloadLib() {
 		{
 			AppSelfHosted = false;
 		}
-		else {
-			bool r = freeLib(Library);
-
-#ifndef _WIN32
-			// flip the boolean for non Win32 OSes
-			r = !r;
-#endif
-
-			assert(r == true);
-		}
+		else freeLib(Library);
 
 		Library = nullptr;
 	}
@@ -268,7 +256,6 @@ wchar_t* OMShared::Funcs::GetUTF16(char* utf8) {
 	wchar_t* buf = nullptr;
 
 	int cc = 0;
-	int count = strlen(utf8);
 	// get length (cc) of the new widechar excluding the \0 terminator first
 	if ((cc = MultiByteToWideChar(CP_UTF8, 0, utf8, -1, NULL, 0)) > 0)
 	{

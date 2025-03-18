@@ -9,9 +9,22 @@ add_rules("mode.release", "mode.debug")
 set_languages("clatest", "cxxlatest")
 set_runtimes("stdc++_static")
 
+option("purewrapper")
+    set_default(false)
+    set_showmenu(true)
+    add_defines("PURE_WRAPPER")
+option_end()
+
+option("useclang")
+    set_default("false")
+    set_showmenu(true)
+option_end()
+
 target("WinMMWRP")
-    set_basename("winmm")
 	set_kind("shared")
+	set_basename("winmm")
+	set_options("useclang")
+	set_options("nonfree")
 
 	if is_mode("debug") then
 		add_defines("DEBUG")
@@ -24,10 +37,16 @@ target("WinMMWRP")
 		set_optimize("fastest")
 		set_strip("all")
 	end
+
+	if has_config("useclang") then
+		set_toolchains("clang-cl")
+	else
+		set_toolchains("mingw")
+	end
 	
 	add_defines("OMNIMIDI_EXPORTS")
-
 	add_ldflags("-j")
+	add_cxflags("-Wall")
 
 	add_includedirs("inc")
 	add_files("src/*.cpp")
@@ -48,11 +67,12 @@ target("WinMMWRP")
 		end
 
 		if is_arch("x86") then 
-			add_shflags("x86exports.def", { force = true })
-		elseif is_arch("x64") then 
-			add_shflags("amd64exports.def", { force = true })
+			add_shflags("legacyExports.def", { force = true })
+		else 
+			add_shflags("newExports.def", { force = true })
 		end
 	else
-		remove_files("*.cpp")
+		-- This is Win32 only
+		remove_files("src/*.cpp")
 	end
 target_end()
