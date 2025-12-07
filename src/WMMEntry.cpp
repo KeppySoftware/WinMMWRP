@@ -264,7 +264,8 @@ extern "C" {
 			MMRESULT Ret = SendDirectLongData(lpMidiOutHdr, uSize);
 
 			// Inform the app that the driver successfully received the long message (Required for vanBasco to work), and return the MMRESULT
-			RunCallbackFunction(MM_MOM_DONE, (DWORD_PTR)hMidiOut, (DWORD_PTR)lpMidiOutHdr);
+			// MOM_DONE callback: dwParam1 = MIDIHDR pointer, dwParam2 = 0 (per Windows API spec)
+			RunCallbackFunction(MM_MOM_DONE, (DWORD_PTR)lpMidiOutHdr, 0);
 
 			return Ret;
 		}
